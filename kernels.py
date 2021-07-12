@@ -1,0 +1,421 @@
+import torch
+from torch.distributions import constraints
+import torch
+from functools import reduce
+
+from pyro.contrib.gp.kernels.kernel import Kernel
+from pyro.nn.module import PyroParam
+from pyro.nn.module import PyroModule
+import sage
+#https://ask.sagemath.org/question/41204/getting-my-own-module-to-work-in-sage/
+from sage.calculus.var import var
+
+import numpy as np
+import pdb
+
+class SageExpression(Kernel):
+
+    def __init__(self, input_dim, base_fkt :sage.symbolic.expression.Expression, hyperparameters:dict=None, var1=var('x1'), var2=var('x2'), active_dims=None):
+        super().__init__(input_dim, active_dims)
+        self.base_cov = base_fkt
+        var_values = {}
+        for param in self.base_cov.variables():
+            if param == var1 or param == var2:
+                continue
+            setattr(self, str(param), PyroParam(torch.tensor(float(hyperparameters[str(param)]), requires_grad=True) if str(param) in hyperparameters.keys() else torch.tensor(float(1.), requires_grad=True), constraints.positive))
+            var_values[str(param)] = getattr(self, str(param))
+        self.params = hyperparameters
+        self.var1 = var1
+        self.var2 = var2
+        add_vars = [str(key) for key in self.params.keys()]
+        add_vars.extend([str(self.var1), str(self.var2)])
+        RPN = shunting(str(self.base_cov), additional_variables = add_vars)
+        print(f"str(self.base_cov): {str(self.base_cov)}")
+        print(f"add_vars:{add_vars}")
+        print(f"RPN:{RPN}")
+        print(f"str(self.var1):{str(self.var1)}")
+        print(f"str(self.var2):{str(self.var2)}")
+        print(f"var_values:{var_values}")
+        func_str = reconstruct(RPN, additional_variables = add_vars, x1_var=str(self.var1), x2_var=str(self.var2), var_values=var_values)
+        print(func_str)
+        # This is incredibly unsafe
+        # TODO: Write a proper (and fast) function generator that returns a callable (lambda?) expression
+        exec(f"self.evaluate = lambda self, v1, v2: {func_str}")
+        self.last_X = None
+        self.last_prepared_X = None
+
+    #TODO: If I train the hyperparameters of the kernel and then diff it, it will lose all progress!
+    # TODO: Rechtsseitige Ableitung beachten / einbauen (In der "Oberklasse" beachten)
+    def derive(self, d_poly : sage.symbolic.expression.Expression=var('d'), d_var=var('d'), e_var=var('x')):
+        result = None
+        # if the derivatives are just integers
+        if type(d_poly) == sage.rings.integer.Integer or d_poly == 0:
+            return SageExpression(d_poly*self.base_cov, self.params)
+        if not type(d_poly) == sage.symbolic.expression.Expression:
+            assert "Derivative expression is neither sage.symbolic.expression.Expression nor sage.rings.integer.Integer"
+        # Catching the case of derivatives being d^n which causes derivatives.operands() to be the list [d, n] instead of [d^n]
+        w0 = SR.wild()
+        if (not all(op.has(d_var) for op in d_poly.operands()) and len(d_poly.operands()) == 2) or (d_poly.has(d_var) and len(d_poly.operands()) == 0):
+            temp = self.base_cov
+            while d_poly.has(d_var):
+                if type(temp) == sage.rings.integer.Integer:
+                    return SageExpression(0, self.params)
+                temp = temp.diff(e_var)
+                # decrease by one deriv
+                d_poly = d_poly/d_var
+            # If this is the first entry, replace (otherwise getting Type-Error)
+            if result == None:
+                result = temp
+            else:
+                result += temp
+            return SageExpression(result, self.params)
+
+        # Iterate over all the operands
+        for operand in d_poly.operands():
+            temp = self.base_cov
+            # If the operand does not contain a "d" it is a constant
+            if not operand.has(d_var):
+                temp = temp*operand
+            # If it contains a "d" it is a derivative
+            while operand.has(d_var):
+                if type(temp) == sage.rings.integer.Integer:
+                    return SageExpression(0, self.params)
+                temp = temp.diff(e_var)
+                operand = operand/d_var
+            if result == None:
+                result = temp
+            else:
+                result += temp
+        return SageExpression(result, self.params)
+
+    def base_cov(self):
+        return self.base_cov
+
+    def set_hyperparameters(self, hyperparameters:dict):
+        self.params = hyperparameters
+
+    def forward(self, X, Z=None):
+        if Z == None:
+            Z = X
+        #pdb.set_trace()
+        #K_0 = X-Z
+
+
+    """
+    # For Testing out the speed with a profiler (exec-based approach) ==Only for debug purposes==
+    def forward(self, X, Z=None):
+        if Z == None:
+            Z = X
+        if not self.last_X is None and torch.all(torch.eq(X, self.last_X)):#id(X) == id(self.last_X):
+            prepared_X = self.last_prepared_X
+        else:
+            \"""
+            Result in matrix of the form
+            [[(1, 11), (1, 12), (1, 13)],
+             [(2, 11), (2, 12), (2, 13)],
+             [(3, 11), (3, 12), (3, 13)]]
+            with
+            X = [1, 2, 3]
+            Z = [11, 12, 13]
+            \"""
+            self.last_X = X
+            prepared_X = [(entry_z, entry_x) for entry_x, entry_z in product(Z,X)]
+            self.last_prepared_X = prepared_X
+        #result = [[0 for i in range(len(Z))] for j in range(len(X))]
+        #pdb.set_trace()
+        result  = []
+        # For debug purposes
+        for v1, v2 in prepared_X:
+            unused_var = torch.tensor(float(24))
+            garbage = torch.pow(unused_var, torch.tensor(float(2)))
+            temp = torch.sub((float(v1)), (float(v2)))
+            temp = torch.pow(temp, float(2))
+            part1 = torch.pow(self.l, (float(2)))
+            temp = torch.div(temp, part1)
+            temp = torch.mul(torch.div(float(-1), float(2)), temp)
+            temp = torch.exp(temp)
+            part2 = torch.pow(self.sigma, float(2))
+            r = torch.mul(part2, temp)
+            result.append(r)
+        # Calculate the matrix directly instead of entrywise
+        #result = [self.evaluate(self, elem[0], elem[1]) for elem in prepared_X]
+        result = torch.reshape(torch.Tensor(result), (len(Z), len(X)))
+        return result
+
+    # loop-based approach to calculate the individual entries of the list (sagemath.subs-based)
+    def forward(self, X, Z=None):
+        if Z == None:
+            Z = X
+        result = [[0 for i in range(len(Z))] for j in range(len(X))]
+        #pdb.set_trace()
+        param_dict = {}
+        for param in self.base_cov.variables():
+            if param == self.var1 or param == self.var2:
+                continue
+            param_dict[param] = float(getattr(self, str(param)))
+        for i, a in enumerate(X):
+            for j, b in enumerate(Z):
+                #pdb.set_trace()
+                param_dict[self.var1] = float(a.float())
+                param_dict[self.var2] = float(b.float())
+                result[i][j] = float(self.base_cov.subs(param_dict))
+                if not len(param_dict) == len(self.base_cov.variables()):
+                    assert "Number of parameters doesn't match required variables"
+        return torch.tensor(result)
+   """
+
+
+
+class TestKernel(Kernel):
+
+    asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
+
+
+    def __init__(self, input_dim, var=None, length=None, active_dims=None):
+        super().__init__(input_dim, active_dims)
+
+        setattr(self, 'var', PyroParam(torch.tensor(float(var)) if not var is None else torch.tensor(float(1.)), constraints.positive))
+        setattr(self, 'length', PyroParam(torch.tensor(float(length)) if not length is None else torch.tensor(float(1.)), constraints.positive))
+        self.K_0 = None
+        self.K_1 = None
+        self.K_4 = None
+
+
+    # Written for the asymmetric (general) case
+    def single_term_extract(self, d_poly, d_var=var('d')):
+        """
+        Returns the degree and the coefficient (either as tensor or as a parameter)
+        """
+        deriv_dict = {}
+        degree = int(d_poly.degree(d_var))
+        # See if it's of the form a*x^n
+        if (not len(d_poly.operands()) == 0) and ('^' in str(d_poly.operands()[0]) or '^' in str(d_poly.operands()[1])):
+            # 1 if the coefficient is in [1], else it must be in [0]
+            coeff_index = int('^' in str(d_poly.operands()[0]))
+            coeff = None
+            if not d_poly.operands()[coeff_index].is_numeric():
+                # If it doesn't exist, a trainable parameter with initial value 1 is created
+                if not hasattr(self, str(d_poly.operands()[coeff_index])):
+                    setattr(self, str(d_poly.operands()[coeff_index]), PyroParam(torch.tensor(float(1.))))
+                coeff = getattr(self, str(d_poly.operands()[coeff_index]))
+            else:
+                coeff = torch.tensor(float(d_poly.operands()[coeff_index]))
+        # Else it's of the form x^n
+        else:
+            coeff = torch.tensor(float(1.))
+        return degree, coeff
+
+
+    def coeffs(self, given_n):
+        # See http://oeis.org/A096713
+        real_n = int(given_n/2)
+        m, k = var('m, k')
+        # even
+        # T(2*m, k) = (-1)^(m+k)*(2*m)!*2^(k-m)/((m-k)!*(2*k)!), k = 0..m.
+        if given_n % 2 == 0:
+            # This notation is only valid in iPython
+            #T(m,k) = factorial(2*m)*2^(k-m)/(factorial(m-k)*factorial(2*k))
+            # As an actual Python file I need to use:
+            T = lambda m, k : factorial(2*m)*2^(k-m)/(factorial(m-k)*factorial(2*k))
+        # odd
+        # T(2*m+1, k) = (-1)^(m+k)*(2*m+1)!*2^(k-m)/((m-k)!*(2*k+1)!), k = 0..m. (End)
+        else:
+            # See above
+            #T(m,k) = factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
+            T = lambda m, k: factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
+
+        return [int(T(real_n, k)) for k in range(real_n+1)]
+
+
+    def prepare_asym_deriv_dict(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2')):
+        # Will be filled as follows: [{'d^o': 4, 'd^p': 2, 'coeff':[a, b]}, {'d^o': 3, 'd^p': 3, 'coeff':[1, c]}, ...]
+        deriv_list = []
+        # simulate multiplication of expressions
+        # TODO vllt mal mit product() versuchen und vorher die Listen vorbereiten?
+        for left in (left_poly.operands() if not ((not all(op.has(left_d_var) for op in left_poly.operands()) and len(left_poly.operands()) == 2) or (left_poly.has(left_d_var) and len(left_poly.operands()) == 0)) else [left_poly]):
+            for right in (right_poly.operands() if not ((not all(op.has(right_d_var) for op in right_poly.operands()) and len(right_poly.operands()) == 2) or (right_poly.has(right_d_var) and len(right_poly.operands()) == 0)) else [right_poly]):
+                left_right = [left, right]
+                # Check if the derivatives are just numbers
+                # ---
+                # Note: Difference between is_numeric() and this typecheck:
+                # Only if a number is of type Expression do they have the 'is_numeric()' function
+                # therefore I can't use that here, but I can in the single term extraction function
+                # ---
+                left_right_number_bool = [type(left) in [sage.rings.real_mpfr.RealLiteral, sage.rings.integer.Integer], type(right) in [sage.rings.real_mpfr.RealLiteral, sage.rings.integer.Integer]]
+                if all(left_right_number_bool):
+                    deriv_list.append({'d^o':0, 'd^p':0, 'coeff':[float(left), float(right)]})
+                if not type(left) == sage.symbolic.expression.Expression and not type(right) == sage.symbolic.expression.Expression:
+                    assert "Derivative expression is neither sage.symbolic.expression.Expression nor number"
+                # Catching the case of derivatives being d^n which causes derivatives.operands() to be the list [d, n] instead of [d^n]
+                # The below steps will also recognize exponential expressions of the form n^x
+                # this will result in unexpected behaviour or exit with an error
+                deriv_entry = {'d^o':0, 'd^p':0, 'coeff':[]}
+                for d_poly, d_var in zip(left_right, [left_d_var, right_d_var]):
+                    if ((not all(op.has(d_var) for op in d_poly.operands()) and len(d_poly.operands()) == 2) or (d_poly.has(d_var) and len(d_poly.operands()) == 0)):
+                        degr, coeff = self.single_term_extract(d_poly, d_var)
+                    # If the operand does not contain a "d" it is a constant
+                    elif not d_poly.has(d_var):
+                        degr = 0
+                        coeff = torch.tensor(float(d_poly))
+                    else:
+                        # If it contains a "d" it is a derivative
+                        # "append" the new dict to the previous dict
+                        degr, coeff = self.single_term_extract(d_poly, d_var)
+                    if d_var == left_d_var:
+                        deriv_entry['d^o'] = degr
+                    else:
+                        deriv_entry['d^p'] = degr
+                    deriv_entry['coeff'].append(coeff)
+                deriv_list.append(deriv_entry)
+        return deriv_list
+
+
+    def asymmetric_deriv(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2')):
+
+        derivation_term_dict = self.prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var)
+
+        def evaluate(X, Z=None):
+            self.result_term = lambda self, l_, coefficients, i, sign, l_exponents, K_1_exponents: \
+            coefficients[i]*(sign*(int(-1)**i))*(l_**l_exponents[i])*(self.K_0**K_1_exponents[i])
+
+            self._square_scaled_dist(X, Z)
+            self.K_4 = torch.mul(self.var, torch.exp(float(-0.5) * self.K_1*(float(1)/self.length**float(2))))
+
+            #return self.K_1, self.K_4, self.length
+
+            result = None
+            for term in derivation_term_dict:
+                degr_o = term['d^o']
+                degr_p = term['d^p']
+                poly_coeffs = term['coeff']
+                sign = self.asym_sign_matr[int(degr_o)%int(4)][int(degr_p)%int(4)]
+                l_exponents = [np.ceil((degr_o+degr_p)/int(2)) + i for i in range(int((degr_o+degr_p)/2)+int(1))]
+#                artificial_degree = np.ceil((degr_o+degr_p)/int(2))
+                K_1_exponents = [int(i*2) if int(degr_o+degr_p)%2 == 0 else int(i*int(2)+int(1)) for i in range(int((degr_o+degr_p)/2)+int(1))]
+                coefficients = self.coeffs(int(degr_o+degr_p))
+                print(f"(x1-x2)^i : {K_1_exponents}")
+                print(f"Coefficients: {coefficients}")
+                print(f"Starting sign: {sign}")
+                print(f"l^(2*N) : {l_exponents}")
+                l_ = float(1)/self.length^(float(2))
+                if result is None:
+                    temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
+                    result = sum(temp)*poly_coeffs[int(0)]*poly_coeffs[int(1)]
+                else:
+                    #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
+                    result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*poly_coeffs[0]*poly_coeffs[int(1)]
+            return self.K_4*result
+        return evaluate
+
+
+    def _square_scaled_dist(self, X, Z=None):
+        r"""
+        Returns :math:`\|\frac{X-Z}{l}\|^2`.
+        """
+        if Z is None:
+            Z = X
+        X = self._slice_input(X)
+        Z = self._slice_input(Z)
+        if X.size(int(1)) != Z.size(int(1)):
+            raise ValueError("Inputs must have the same number of features.")
+
+        #scaled_X = X / self.length
+        #scaled_Z = Z / self.length
+        X2 = (X ** 2).sum(1, keepdim=True)
+        Z2 = (Z ** 2).sum(1, keepdim=True)
+        XZ = X.matmul(Z.t())
+        self.K_0 = X-Z.t()
+        r2 = X2 - 2 * XZ + Z2.t()
+        self.K_1 = r2.clamp(min=int(0))
+
+
+    def _diag(self, X):
+        """
+        Calculates the diagonal part of covariance matrix on active features.
+        """
+        return self.var.expand(X.size(0))
+
+    def forward(self, X, Z=None, diag=False):
+        if Z == None:
+            Z = X
+
+        if diag:
+            return self._diag(X)
+
+        self._square_scaled_dist(X, Z)
+        self.K_4 = self.var * torch.exp(-0.5 * self.K_1/(self.length**2))
+        #if all(torch.eq(X, Z)) and not all(entry < float(0.00001) for entry in (self.K_4-torch.transpose(self.K_4, int(0), int(1))).flatten()):
+        #    print(self.K_4)
+        #    assert "Cov. Matr is not symmetric"
+        #if X.shape == Z.shape and all(torch.eq(X, Z)):
+            #print(f"X:\n {X}")
+            #print(f"Z:\n {Z}")
+            #print(f"K_4:\n {self.K_4}")
+            #print(torch.eig(self.K_4)[0])
+        #    assert all(entry < float(0.00001) for entry in (self.K_4-torch.transpose(self.K_4, int(0), int(1))).flatten()), "Covariance matrix is not symmetric"
+        #    assert all(entry[0] >= -0.0001 for entry in torch.eig(self.K_4)[0]), "Eigenvalues contain negative values"
+
+        return self.K_4
+
+
+
+class MatrixKernel(Kernel):
+
+
+    def __init__(self, input_dim, matrix, active_dims=None):
+        super().__init__(input_dim, active_dims)
+
+        self.matrix = matrix
+        for i, kernel in enumerate(self.matrix):
+            setattr(self, f'kernel_{i}', kernel)
+
+    def _diag(self, X):
+        """
+        Calculate the diagonal part for each of the kernels and construct a diagonal matrix
+        """
+        #TODO debug
+        if X.ndim == 1:
+            H_x = np.shape(X)[0]
+
+        result = None
+        for i, kernel in enumerate(self.matrix):
+            result1 = kernel.forward(X, diag=True)
+
+            # append horizontally
+            if result is None:
+                result = result1
+            else:
+                # append vertically
+                result = torch.cat((result, result1), int(0))
+        return result
+
+
+    def forward(self, X, Z=None, diag=False):
+        if Z == None:
+            Z = X
+        if X.ndim == 1:
+            H_x = np.shape(X)[0]
+        if Z.ndim == 1:
+            H_z = np.shape(Z)[0]
+
+        if diag:
+            return self._diag(X)
+        zero_matrix = torch.zeros(H_x, H_z)
+        #zero_matrix = torch.tensor([[int(0) for i in range(H_z)] for j in range(H_x)])
+        result = None
+        for i, kernel in enumerate(self.matrix):
+            result1 = kernel.forward(X, Z)
+
+            position_tuple = tuple([zero_matrix if not j == i else result1 for j in range(len(self.matrix))])
+            # concat horizontally
+            result1 = torch.cat(position_tuple, int(1))
+            if result is None:
+                result = result1
+            else:
+                # append vertically
+                result = torch.cat((result, result1), int(0))
+        return result
+
+
+
+
