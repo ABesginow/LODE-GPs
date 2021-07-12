@@ -166,7 +166,7 @@ class SageExpression(Kernel):
 
 
 
-class TestKernel(Kernel):
+class Diff_SE_kernel(Kernel):
 
     asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
 
