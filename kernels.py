@@ -356,7 +356,7 @@ class Diff_SE_kernel(Kernel):
         #    assert all(entry < float(0.00001) for entry in (self.K_4-torch.transpose(self.K_4, int(0), int(1))).flatten()), "Covariance matrix is not symmetric"
         #    assert all(entry[0] >= -0.0001 for entry in torch.eig(self.K_4)[0]), "Eigenvalues contain negative values"
 
-        return self.K_4 + torch.eye(len(self.K_4)) * 1e-6
+        return self.K_4 + torch.eye(len(self.K_4)) * 1e-4
 
 
 
