@@ -394,10 +394,12 @@ class MatrixKernel(Kernel):
     def forward(self, X, Z=None, diag=False):
         if Z == None:
             Z = X
-        if X.ndim == 1:
-            H_x = np.shape(X)[0]
-        if Z.ndim == 1:
-            H_z = np.shape(Z)[0]
+        if not X.ndim == 1:
+            X = X.flatten()
+        if not Z.ndim == 1:
+            Z = Z.flatten()
+        H_z = np.shape(Z)[0]
+        H_x = np.shape(X)[0]
 
         if diag:
             return self._diag(X)
