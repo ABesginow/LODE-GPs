@@ -174,8 +174,16 @@ class Diff_SE_kernel(Kernel):
     def __init__(self, input_dim, var=None, length=None, active_dims=None):
         super().__init__(input_dim, active_dims)
 
-        setattr(self, 'var', PyroParam(torch.tensor(float(var)) if not var is None else torch.tensor(float(1.)), constraints.positive))
-        setattr(self, 'length', PyroParam(torch.tensor(float(length)) if not length is None else torch.tensor(float(1.)), constraints.positive))
+        #setattr(self, 'var', PyroParam(torch.tensor(float(var)) if not var is None else torch.tensor(float(1.)), constraints.positive))
+        setattr(self, 'var', torch.nn.Parameter(torch.tensor(float(var))
+                                                if not var is None else
+                                                torch.tensor(float(1.)),
+                                                requires_grad=True))
+        #setattr(self, 'length', PyroParam(torch.tensor(float(length)) if not length is None else torch.tensor(float(1.)), constraints.positive))
+        setattr(self, 'length', torch.nn.Parameter(torch.tensor(float(length))
+                                                   if not length is None else
+                                                   torch.tensor(float(1.)),
+                                                   requires_grad=True))
         self.K_0 = None
         self.K_1 = None
         self.K_4 = None
@@ -336,6 +344,8 @@ class Diff_SE_kernel(Kernel):
         return self.var.expand(X.size(0))
 
     def forward(self, X, Z=None, diag=False):
+        var = torch.nn.functional.relu(self.var)
+        length = torch.nn.functional.relu(self.length)
         if Z == None:
             Z = X
 
@@ -343,7 +353,7 @@ class Diff_SE_kernel(Kernel):
             return self._diag(X)
 
         self._square_scaled_dist(X, Z)
-        self.K_4 = self.var * torch.exp(-0.5 * self.K_1/(self.length**2))
+        self.K_4 = var * torch.exp(-0.5 * self.K_1/(length**2))
 
         #if all(torch.eq(X, Z)) and not all(entry < float(0.00001) for entry in (self.K_4-torch.transpose(self.K_4, int(0), int(1))).flatten()):
         #    print(self.K_4)
@@ -417,6 +427,7 @@ class MatrixKernel(Kernel):
             else:
                 # append vertically
                 result = torch.cat((result, result1), int(0))
+        result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
         return result
 
 
