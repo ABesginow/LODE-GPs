@@ -9,7 +9,7 @@ from pyro.nn.module import PyroModule
 import sage
 #https://ask.sagemath.org/question/41204/getting-my-own-module-to-work-in-sage/
 from sage.calculus.var import var
-
+from sage.arith.misc import factorial
 import numpy as np
 import pdb
 
@@ -224,13 +224,13 @@ class Diff_SE_kernel(Kernel):
             # This notation is only valid in iPython
             #T(m,k) = factorial(2*m)*2^(k-m)/(factorial(m-k)*factorial(2*k))
             # As an actual Python file I need to use:
-            T = lambda m, k : factorial(2*m)*2^(k-m)/(factorial(m-k)*factorial(2*k))
+            T = lambda m, k : factorial(2*m)*2**(k-m)/(factorial(m-k)*factorial(2*k))
         # odd
         # T(2*m+1, k) = (-1)^(m+k)*(2*m+1)!*2^(k-m)/((m-k)!*(2*k+1)!), k = 0..m. (End)
         else:
             # See above
             #T(m,k) = factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
-            T = lambda m, k: factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
+            T = lambda m, k: factorial(2*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
 
         return [int(T(real_n, k)) for k in range(real_n+1)]
 
@@ -305,7 +305,7 @@ class Diff_SE_kernel(Kernel):
                 print(f"Coefficients: {coefficients}")
                 print(f"Starting sign: {sign}")
                 print(f"l^(2*N) : {l_exponents}")
-                l_ = float(1)/self.length^(float(2))
+                l_ = float(1)/self.length**(float(2))
                 if result is None:
                     temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
                     result = sum(temp)*poly_coeffs[int(0)]*poly_coeffs[int(1)]
