@@ -240,16 +240,57 @@ class Diff_SE_kernel(Kernel):
         deriv_list = []
         # simulate multiplication of expressions
         # TODO vllt mal mit product() versuchen und vorher die Listen vorbereiten?
-        for left in (left_poly.operands() if not ((not all(op.has(left_d_var) for op in left_poly.operands()) and len(left_poly.operands()) == 2) or (left_poly.has(left_d_var) and len(left_poly.operands()) == 0)) else [left_poly]):
-            for right in (right_poly.operands() if not ((not all(op.has(right_d_var) for op in right_poly.operands()) and len(right_poly.operands()) == 2) or (right_poly.has(right_d_var) and len(right_poly.operands()) == 0)) else [right_poly]):
+        # Check if either left or right 'polynomial' is just an Integer
+        # since this is treated differently by sage
+        if type(left_poly) in [sage.rings.real_mpfr.RealLiteral,
+                               sage.rings.integer.Integer]:
+            # if left is constant add it to coefficient and iterate over
+            # right polynomial
+            print("SUCCESS")
+            pass
+        if type(right_poly) in [sage.rings.real_mpfr.RealLiteral,
+                                sage.rings.integer.Integer]:
+            # if left is constant add it to coefficient and iterate over
+            # right polynomial
+            pass
+        for left in (left_poly.operands()
+                     if not type(left_poly)
+                     in [sage.rings.integer.Integer,
+                         sage.rings.real_mpfr.RealLiteral]
+                     and (not
+                          ((not all(op.has(left_d_var)
+                                    for op in left_poly.operands())
+                            and len(left_poly.operands()) == 2)
+                              or (left_poly.has(left_d_var)
+                                  and len(left_poly.operands()) == 0)
+                           ))
+                     else [left_poly]):
+            for right in (right_poly.operands()
+                          if not type(right_poly)
+                          in [sage.rings.integer.Integer,
+                              sage.rings.real_mpfr.RealLiteral]
+                          and (not
+                               ((not all(op.has(right_d_var)
+                                         for op in right_poly.operands())
+                                 and len(right_poly.operands()) == 2)
+                                   or (right_poly.has(right_d_var)
+                                       and len(right_poly.operands()) == 0)
+                                ))
+                          else [right_poly]):
                 left_right = [left, right]
                 # Check if the derivatives are just numbers
                 # ---
                 # Note: Difference between is_numeric() and this typecheck:
-                # Only if a number is of type Expression do they have the 'is_numeric()' function
-                # therefore I can't use that here, but I can in the single term extraction function
+                # Only if a number is of type Expression do they have the
+                # 'is_numeric()' function therefore I can't use that here, but
+                # I can in the single term extraction function
                 # ---
-                left_right_number_bool = [type(left) in [sage.rings.real_mpfr.RealLiteral, sage.rings.integer.Integer], type(right) in [sage.rings.real_mpfr.RealLiteral, sage.rings.integer.Integer]]
+                left_right_number_bool = [type(left) in
+                                          [sage.rings.real_mpfr.RealLiteral,
+                                           sage.rings.integer.Integer],
+                                          type(right) in
+                                          [sage.rings.real_mpfr.RealLiteral,
+                                           sage.rings.integer.Integer]]
                 if all(left_right_number_bool):
                     deriv_list.append({'d^o':0, 'd^p':0, 'coeff':[float(left), float(right)]})
                 if not type(left) == sage.symbolic.expression.Expression and not type(right) == sage.symbolic.expression.Expression:
@@ -259,10 +300,23 @@ class Diff_SE_kernel(Kernel):
                 # this will result in unexpected behaviour or exit with an error
                 deriv_entry = {'d^o':0, 'd^p':0, 'coeff':[]}
                 for d_poly, d_var in zip(left_right, [left_d_var, right_d_var]):
-                    if ((not all(op.has(d_var) for op in d_poly.operands()) and len(d_poly.operands()) == 2) or (d_poly.has(d_var) and len(d_poly.operands()) == 0)):
+                    # Check if either left or right is number
+                    # -> make coefficient
+                    if type(d_poly) in [sage.rings.integer.Integer,
+                                        sage.rings.real_mpfr.RealLiteral]:
+                        degr = 0
+                        coeff = torch.tensor(float(d_poly))
+                    elif ((not all(op.has(d_var) for op in d_poly.operands())
+                           and len(d_poly.operands()) == 2)
+                              or (d_poly.has(d_var)
+                                  and len(d_poly.operands()) == 0)):
                         degr, coeff = self.single_term_extract(d_poly, d_var)
                     # If the operand does not contain a "d" it is a constant
+                    # TODO: This should never happen since the first if
+                    # catches this case
                     elif not d_poly.has(d_var):
+                        import pdb
+                        pdb.set_trace()
                         degr = 0
                         coeff = torch.tensor(float(d_poly))
                     else:
