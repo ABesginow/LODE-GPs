@@ -3,7 +3,7 @@ from torch.distributions import constraints
 import torch
 from functools import reduce
 
-from pyro.contrib.gp.kernels.kernel import Kernel
+from gpytorch.kernels.kernel import Kernel
 from pyro.nn.module import PyroParam
 from pyro.nn.module import PyroModule
 import sage
@@ -386,16 +386,32 @@ class Diff_SE_kernel(Kernel):
         """
         return self.var.expand(X.size(0))
 
-    def forward(self, X, Z=None, diag=False):
+
+    def _slice_input(self, X):
+        r"""
+        Slices :math:`X` according to ``self.active_dims``. If ``X`` is 1D then returns
+        a 2D tensor with shape :math:`N \times 1`.
+        :param torch.Tensor X: A 1D or 2D input tensor.
+        :returns: a 2D slice of :math:`X`
+        :rtype: torch.Tensor
+        """
+        if X.dim() == 2:
+            return X[:, self.active_dims]
+        elif X.dim() == 1:
+            return X.unsqueeze(1)
+        else:
+            raise ValueError("Input X must be either 1 or 2 dimensional.")
+
+    def forward(self, x1, x2, diag=False, **params):
         var = torch.nn.functional.relu(self.var)
         length = torch.nn.functional.relu(self.length)
-        if Z == None:
-            Z = X
+        if x2 == None:
+            x2 = x1
 
         if diag:
             return self._diag(X)
 
-        self._square_scaled_dist(X, Z)
+        self._square_scaled_dist(x1, x2)
         self.K_4 = var * torch.exp(-0.5 * self.K_1/(length**2))
 
         #if all(torch.eq(X, Z)) and not all(entry < float(0.00001) for entry in (self.K_4-torch.transpose(self.K_4, int(0), int(1))).flatten()):
@@ -418,7 +434,7 @@ class MatrixKernel(Kernel):
 
     def __init__(self, input_dim, matrix, active_dims=None):
         super().__init__(input_dim, active_dims)
-
+        self.num_tasks = np.shape(matrix)[0]
         self.matrix = matrix
         for i, kernel in enumerate(self.matrix):
             setattr(self, f'kernel_{i}', kernel)
@@ -443,24 +459,23 @@ class MatrixKernel(Kernel):
                 result = torch.cat((result, result1), int(0))
         return result
 
-
-    def forward(self, X, Z=None, diag=False):
-        if Z == None:
-            Z = X
-        if not X.ndim == 1:
-            X = X.flatten()
-        if not Z.ndim == 1:
-            Z = Z.flatten()
-        H_z = np.shape(Z)[0]
-        H_x = np.shape(X)[0]
+    def forward(self, x1, x2, diag=False, **params):
+        if x2 == None:
+            x2 = x1
+        if not x1.ndim == 1:
+            x1 = x1.flatten()
+        if not x2.ndim == 1:
+            x2 = x2.flatten()
+        H_z = np.shape(x2)[0]
+        H_x = np.shape(x1)[0]
 
         if diag:
-            return self._diag(X)
+            return self._diag(x1)
         zero_matrix = torch.zeros(H_x, H_z)
         #zero_matrix = torch.tensor([[int(0) for i in range(H_z)] for j in range(H_x)])
         result = None
         for i, kernel in enumerate(self.matrix):
-            result1 = kernel.forward(X, Z)
+            result1 = kernel.forward(x1, x2)
 
             position_tuple = tuple([zero_matrix if not j == i else result1 for j in range(len(self.matrix))])
             # concat horizontally
@@ -473,6 +488,8 @@ class MatrixKernel(Kernel):
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
         return result
 
+    def num_outputs_per_input(self, x1, x2):
+        return self.num_tasks
 
 def DiffMatrixKernel(MatrixKernel):
      def __init__(self, matrix, active_dims=None):
