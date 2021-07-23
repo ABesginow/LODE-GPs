@@ -242,17 +242,6 @@ class Diff_SE_kernel(Kernel):
         # TODO vllt mal mit product() versuchen und vorher die Listen vorbereiten?
         # Check if either left or right 'polynomial' is just an Integer
         # since this is treated differently by sage
-        if type(left_poly) in [sage.rings.real_mpfr.RealLiteral,
-                               sage.rings.integer.Integer]:
-            # if left is constant add it to coefficient and iterate over
-            # right polynomial
-            print("SUCCESS")
-            pass
-        if type(right_poly) in [sage.rings.real_mpfr.RealLiteral,
-                                sage.rings.integer.Integer]:
-            # if left is constant add it to coefficient and iterate over
-            # right polynomial
-            pass
         for left in (left_poly.operands()
                      if not type(left_poly)
                      in [sage.rings.integer.Integer,
@@ -483,6 +472,33 @@ class MatrixKernel(Kernel):
                 result = torch.cat((result, result1), int(0))
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
         return result
+
+
+def DiffMatrixKernel(MatrixKernel):
+     def __init__(self, matrix, active_dims=None):
+         if not all([k == 0 or k.is_diffable for k in matrix]):
+             assert "Not all kernels are differentiable"
+         super().__init__(matrix, active_dims)
+
+     def calc_cell_diff(L, M, R, row, col):
+         len_M = M.number_of_arguments()
+         temp = None
+         for j in range(int(sqrt(len_M))):
+             if temp == None:
+                 M_tr = list(map(list, itertools.zip_longest(*M, fillvalue=None)))
+                 [M_tr[j].diff(left_poly=L[row][k], right_poly=R.transpose()[col][j]) for k in range(L.number_of_arguments())]
+                 temp = L[row]*M.transpose()[j]*R.transpose()[col][j]
+             else:
+                 temp += L[row]*M.transpose()[j]*R.transpose()[col][j]
+         return temp
+
+
+     def diff(self, left_matrix=None, right_matrix=None):
+         # iterate left matrix by rows and right matrix by columns and call the
+         # respective diff command of the kernels with the row/cols as params
+
+         return MatrixKernel(output_matrix)
+
 
 
 
