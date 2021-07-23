@@ -171,8 +171,8 @@ class Diff_SE_kernel(Kernel):
     asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
 
 
-    def __init__(self, input_dim, var=None, length=None, active_dims=None):
-        super().__init__(input_dim, active_dims)
+    def __init__(self,  var=None, length=None, active_dims=None):
+        super().__init__(active_dims=active_dims)
 
         #setattr(self, 'var', PyroParam(torch.tensor(float(var)) if not var is None else torch.tensor(float(1.)), constraints.positive))
         setattr(self, 'var', torch.nn.Parameter(torch.tensor(float(var))
@@ -432,8 +432,8 @@ class Diff_SE_kernel(Kernel):
 class MatrixKernel(Kernel):
 
 
-    def __init__(self, input_dim, matrix, active_dims=None):
-        super().__init__(input_dim, active_dims)
+    def __init__(self, matrix, active_dims=None):
+        super().__init__(active_dims=active_dims)
         self.num_tasks = np.shape(matrix)[0]
         self.matrix = matrix
         for i, kernel in enumerate(self.matrix):
@@ -495,7 +495,7 @@ def DiffMatrixKernel(MatrixKernel):
      def __init__(self, matrix, active_dims=None):
          if not all([k == 0 or k.is_diffable for k in matrix]):
              assert "Not all kernels are differentiable"
-         super().__init__(matrix, active_dims)
+         super().__init__(matrix, active_dims=active_dims)
 
      def calc_cell_diff(L, M, R, row, col):
          len_M = M.number_of_arguments()
