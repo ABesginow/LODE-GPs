@@ -13,6 +13,7 @@ from sage.arith.misc import factorial
 import numpy as np
 import pdb
 
+DEBUG = False
 class SageExpression(Kernel):
 
     def __init__(self, input_dim, base_fkt :sage.symbolic.expression.Expression, hyperparameters:dict=None, var1=var('x1'), var2=var('x2'), active_dims=None):
@@ -342,10 +343,11 @@ class Diff_SE_kernel(Kernel):
 #                artificial_degree = np.ceil((degr_o+degr_p)/int(2))
                 K_1_exponents = [int(i*2) if int(degr_o+degr_p)%2 == 0 else int(i*int(2)+int(1)) for i in range(int((degr_o+degr_p)/2)+int(1))]
                 coefficients = self.coeffs(int(degr_o+degr_p))
-                print(f"(x1-x2)^i : {K_1_exponents}")
-                print(f"Coefficients: {coefficients}")
-                print(f"Starting sign: {sign}")
-                print(f"l^(2*N) : {l_exponents}")
+                if DEBUG:
+                    print(f"(x1-x2)^i : {K_1_exponents}")
+                    print(f"Coefficients: {coefficients}")
+                    print(f"Starting sign: {sign}")
+                    print(f"l^(2*N) : {l_exponents}")
                 l_ = float(1)/self.length**(float(2))
                 if result is None:
                     temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
