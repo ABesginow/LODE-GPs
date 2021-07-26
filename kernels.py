@@ -323,40 +323,77 @@ class Diff_SE_kernel(Kernel):
     def asymmetric_deriv(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2')):
 
         derivation_term_dict = self.prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var)
+        class diffed_SE_kernel(Kernel):
 
-        def evaluate(X, Z=None):
-            self.result_term = lambda self, l_, coefficients, i, sign, l_exponents, K_1_exponents: \
-            coefficients[i]*(sign*(int(-1)**i))*(l_**l_exponents[i])*(self.K_0**K_1_exponents[i])
+           def __init__(self,  var=None, length=None, active_dims=None):
+                super().__init__(active_dims=active_dims)
+                setattr(self, 'var', torch.nn.Parameter(torch.tensor(float(var))
+                                                        if not var is None else
+                                                        torch.tensor(float(1.)),
+                                                        requires_grad=True))
+                setattr(self, 'length', torch.nn.Parameter(torch.tensor(float(length))
+                                                           if not length is None else
+                                                           torch.tensor(float(1.)),
+                                                           requires_grad=True))
+                self.K_0 = None
+                self.K_1 = None
+                self.K_4 = None
 
-            self._square_scaled_dist(X, Z)
-            self.K_4 = torch.mul(self.var, torch.exp(float(-0.5) * self.K_1*(float(1)/self.length**float(2))))
+            def _square_scaled_dist(self, X, Z=None):
+                r"""
+                Returns :math:`\|\frac{X-Z}{l}\|^2`.
+                """
+                if Z is None:
+                    Z = X
+                X = self._slice_input(X)
+                Z = self._slice_input(Z)
+                if X.size(int(1)) != Z.size(int(1)):
+                    raise ValueError("Inputs must have the same number of features.")
 
-            #return self.K_1, self.K_4, self.length
+                #scaled_X = X / self.length
+                #scaled_Z = Z / self.length
+                X2 = (X ** 2).sum(1, keepdim=True)
+                Z2 = (Z ** 2).sum(1, keepdim=True)
+                XZ = X.matmul(Z.t())
+                self.K_0 = X-Z.t()
+                r2 = X2 - 2 * XZ + Z2.t()
+                self.K_1 = r2.clamp(min=int(0))
 
-            result = None
-            for term in derivation_term_dict:
-                degr_o = term['d^o']
-                degr_p = term['d^p']
-                poly_coeffs = term['coeff']
-                sign = self.asym_sign_matr[int(degr_o)%int(4)][int(degr_p)%int(4)]
-                l_exponents = [np.ceil((degr_o+degr_p)/int(2)) + i for i in range(int((degr_o+degr_p)/2)+int(1))]
+
+
+            def forward(self, x1, x2, diag=False, **params):
+                self.result_term = lambda self, l_, coefficients, i, sign, l_exponents, K_1_exponents: \
+                coefficients[i]*(sign*(int(-1)**i))*(l_**l_exponents[i])*(self.K_0**K_1_exponents[i])
+
+                self._square_scaled_dist(x1, x2)
+                self.K_4 = torch.mul(self.var, torch.exp(float(-0.5) * self.K_1*(float(1)/self.length**float(2))))
+
+                #return self.K_1, self.K_4, self.length
+
+                result = None
+                for term in derivation_term_dict:
+                    degr_o = term['d^o']
+                    degr_p = term['d^p']
+                    poly_coeffs = term['coeff']
+                    sign = self.asym_sign_matr[int(degr_o)%int(4)][int(degr_p)%int(4)]
+                    l_exponents = [np.ceil((degr_o+degr_p)/int(2)) + i for i in range(int((degr_o+degr_p)/2)+int(1))]
 #                artificial_degree = np.ceil((degr_o+degr_p)/int(2))
-                K_1_exponents = [int(i*2) if int(degr_o+degr_p)%2 == 0 else int(i*int(2)+int(1)) for i in range(int((degr_o+degr_p)/2)+int(1))]
-                coefficients = self.coeffs(int(degr_o+degr_p))
-                if DEBUG:
-                    print(f"(x1-x2)^i : {K_1_exponents}")
-                    print(f"Coefficients: {coefficients}")
-                    print(f"Starting sign: {sign}")
-                    print(f"l^(2*N) : {l_exponents}")
-                l_ = float(1)/self.length**(float(2))
-                if result is None:
-                    temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
-                    result = sum(temp)*poly_coeffs[int(0)]*poly_coeffs[int(1)]
-                else:
-                    #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
-                    result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*poly_coeffs[0]*poly_coeffs[int(1)]
-            return self.K_4*result
-        return evaluate
+                    K_1_exponents = [int(i*2) if int(degr_o+degr_p)%2 == 0 else int(i*int(2)+int(1)) for i in range(int((degr_o+degr_p)/2)+int(1))]
+                    coefficients = self.coeffs(int(degr_o+degr_p))
+                    if DEBUG:
+                        print(f"(x1-x2)^i : {K_1_exponents}")
+                        print(f"Coefficients: {coefficients}")
+                        print(f"Starting sign: {sign}")
+                        print(f"l^(2*N) : {l_exponents}")
+                    l_ = float(1)/self.length**(float(2))
+                    if result is None:
+                        temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
+                        result = sum(temp)*poly_coeffs[int(0)]*poly_coeffs[int(1)]
+                    else:
+                        #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
+                        result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*poly_coeffs[0]*poly_coeffs[int(1)]
+                return self.K_4*result
+        return diffed_SE_kernel(var=var, length=length, active_dims=active_dims)
 
 
     def _square_scaled_dist(self, X, Z=None):
