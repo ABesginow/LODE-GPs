@@ -203,7 +203,9 @@ class Diff_SE_kernel(Kernel):
             if not d_poly.operands()[coeff_index].is_numeric():
                 # If it doesn't exist, a trainable parameter with initial value 1 is created
                 if not hasattr(self, str(d_poly.operands()[coeff_index])):
-                    setattr(self, str(d_poly.operands()[coeff_index]), PyroParam(torch.tensor(float(1.))))
+                    setattr(self,  str(d_poly.operands()[coeff_index]),
+                            torch.nn.Parameter(torch.tensor(float(1.)),
+                            requires_grad=True))
                 coeff = getattr(self, str(d_poly.operands()[coeff_index]))
             else:
                 coeff = torch.tensor(float(d_poly.operands()[coeff_index]))
