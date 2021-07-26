@@ -489,6 +489,8 @@ class MatrixKernel(Kernel):
         super().__init__(active_dims=active_dims)
         self.num_tasks = np.shape(matrix)[0]
         self.matrix = matrix
+        # check if matrix is symmetrical (after init throw in random values and
+        # check for symmetry & eigenvalues)
         for i, kernel in enumerate(self.matrix):
             setattr(self, f'kernel_{i}', kernel)
 
