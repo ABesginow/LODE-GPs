@@ -213,27 +213,6 @@ class Diff_SE_kernel(Kernel):
         return degree, coeff
 
 
-    def coeffs(self, given_n):
-        # See http://oeis.org/A096713
-        real_n = int(given_n/2)
-        m, k = var('m, k')
-        # even
-        # T(2*m, k) = (-1)^(m+k)*(2*m)!*2^(k-m)/((m-k)!*(2*k)!), k = 0..m.
-        if given_n % 2 == 0:
-            # This notation is only valid in iPython
-            #T(m,k) = factorial(2*m)*2^(k-m)/(factorial(m-k)*factorial(2*k))
-            # As an actual Python file I need to use:
-            T = lambda m, k : factorial(2*m)*2**(k-m)/(factorial(m-k)*factorial(2*k))
-        # odd
-        # T(2*m+1, k) = (-1)^(m+k)*(2*m+1)!*2^(k-m)/((m-k)!*(2*k+1)!), k = 0..m. (End)
-        else:
-            # See above
-            #T(m,k) = factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
-            T = lambda m, k: factorial(1*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
-
-        return [int(T(real_n, k)) for k in range(real_n+1)]
-
-
     def prepare_asym_deriv_dict(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2')):
         # Will be filled as follows: [{'d^o': 4, 'd^p': 2, 'coeff':[a, b]}, {'d^o': 3, 'd^p': 3, 'coeff':[1, c]}, ...]
         deriv_list = []
@@ -303,8 +282,6 @@ class Diff_SE_kernel(Kernel):
                     # TODO: This should never happen since the first if
                     # catches this case
                     elif not d_poly.has(d_var):
-                        import pdb
-                        pdb.set_trace()
                         degr = 0
                         coeff = torch.tensor(float(d_poly))
                     else:
@@ -324,6 +301,7 @@ class Diff_SE_kernel(Kernel):
 
         derivation_term_dict = self.prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var)
         class diffed_SE_kernel(Kernel):
+            asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
 
             def __init__(self,  var=None, length=None, active_dims=None):
                 super().__init__(active_dims=active_dims)
@@ -338,6 +316,27 @@ class Diff_SE_kernel(Kernel):
                 self.K_0 = None
                 self.K_1 = None
                 self.K_4 = None
+
+            def coeffs(self, given_n):
+                # See http://oeis.org/A096713
+                real_n = int(given_n/2)
+                m, k = var('m, k')
+                # even
+                # T(2*m, k) = (-1)^(m+k)*(2*m)!*2^(k-m)/((m-k)!*(2*k)!), k = 0..m.
+                if given_n % 2 == 0:
+                    # This notation is only valid in iPython
+                    #T(m,k) = factorial(2*m)*2^(k-m)/(factorial(m-k)*factorial(2*k))
+                    # As an actual Python file I need to use:
+                    T = lambda m, k : factorial(2*m)*2**(k-m)/(factorial(m-k)*factorial(2*k))
+                # odd
+                # T(2*m+1, k) = (-1)^(m+k)*(2*m+1)!*2^(k-m)/((m-k)!*(2*k+1)!), k = 0..m. (End)
+                else:
+                    # See above
+                    #T(m,k) = factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
+                    T = lambda m, k: factorial(1*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
+
+                return [int(T(real_n, k)) for k in range(real_n+1)]
+
 
             def _slice_input(self, X):
                 r"""
@@ -360,8 +359,10 @@ class Diff_SE_kernel(Kernel):
                 """
                 if Z is None:
                     Z = X
-                X = self._slice_input(X)
-                Z = self._slice_input(Z)
+                if not X.shape[1] == 1:
+                    X = self._slice_input(X)
+                if not Z.shape[1] == 1:
+                    Z = self._slice_input(Z)
                 if X.size(int(1)) != Z.size(int(1)):
                     raise ValueError("Inputs must have the same number of features.")
 
