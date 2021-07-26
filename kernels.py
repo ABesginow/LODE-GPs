@@ -339,6 +339,21 @@ class Diff_SE_kernel(Kernel):
                 self.K_1 = None
                 self.K_4 = None
 
+            def _slice_input(self, X):
+                r"""
+                Slices :math:`X` according to ``self.active_dims``. If ``X`` is 1D then returns
+                a 2D tensor with shape :math:`N \times 1`.
+                :param torch.Tensor X: A 1D or 2D input tensor.
+                :returns: a 2D slice of :math:`X`
+                :rtype: torch.Tensor
+                """
+                if X.dim() == 2:
+                    return X[:, self.active_dims]
+                elif X.dim() == 1:
+                    return X.unsqueeze(1)
+                else:
+                    raise ValueError("Input X must be either 1 or 2 dimensional.")
+
             def _square_scaled_dist(self, X, Z=None):
                 r"""
                 Returns :math:`\|\frac{X-Z}{l}\|^2`.
@@ -393,7 +408,7 @@ class Diff_SE_kernel(Kernel):
                         #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
                         result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*poly_coeffs[0]*poly_coeffs[int(1)]
                 return self.K_4*result
-        return diffed_SE_kernel(var=self.var, length=self.length, active_dims=active_dims)
+        return diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
 
 
     def _square_scaled_dist(self, X, Z=None):
