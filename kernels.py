@@ -173,13 +173,11 @@ class Diff_SE_kernel(Kernel):
 
     def __init__(self,  var=None, length=None, active_dims=None):
         super().__init__(active_dims=active_dims)
-
-        #setattr(self, 'var', PyroParam(torch.tensor(float(var)) if not var is None else torch.tensor(float(1.)), constraints.positive))
+        self.is_diffable = True
         setattr(self, 'var', torch.nn.Parameter(torch.tensor(float(var))
                                                 if not var is None else
                                                 torch.tensor(float(1.)),
                                                 requires_grad=True))
-        #setattr(self, 'length', PyroParam(torch.tensor(float(length)) if not length is None else torch.tensor(float(1.)), constraints.positive))
         setattr(self, 'length', torch.nn.Parameter(torch.tensor(float(length))
                                                    if not length is None else
                                                    torch.tensor(float(1.)),
@@ -230,7 +228,7 @@ class Diff_SE_kernel(Kernel):
         else:
             # See above
             #T(m,k) = factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
-            T = lambda m, k: factorial(2*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
+            T = lambda m, k: factorial(1*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
 
         return [int(T(real_n, k)) for k in range(real_n+1)]
 
