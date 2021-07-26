@@ -393,7 +393,7 @@ class Diff_SE_kernel(Kernel):
                         #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
                         result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*poly_coeffs[0]*poly_coeffs[int(1)]
                 return self.K_4*result
-        return diffed_SE_kernel(var=var, length=length, active_dims=active_dims)
+        return diffed_SE_kernel(var=self.var, length=self.length, active_dims=active_dims)
 
 
     def _square_scaled_dist(self, X, Z=None):
