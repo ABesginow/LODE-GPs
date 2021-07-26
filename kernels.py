@@ -325,7 +325,7 @@ class Diff_SE_kernel(Kernel):
         derivation_term_dict = self.prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var)
         class diffed_SE_kernel(Kernel):
 
-           def __init__(self,  var=None, length=None, active_dims=None):
+            def __init__(self,  var=None, length=None, active_dims=None):
                 super().__init__(active_dims=active_dims)
                 setattr(self, 'var', torch.nn.Parameter(torch.tensor(float(var))
                                                         if not var is None else
