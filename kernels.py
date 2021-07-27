@@ -548,32 +548,42 @@ class MatrixKernel(Kernel):
     def num_outputs_per_input(self, x1, x2):
         return self.num_tasks
 
+
 def DiffMatrixKernel(MatrixKernel):
     def __init__(self, matrix, active_dims=None):
         if not all([k == 0 or k.is_diffable for k in matrix]):
             assert "Not all kernels are differentiable"
         super().__init__(matrix, active_dims=active_dims)
 
-    def calc_cell_diff(L, M, R, row, col):
-        len_M = M.number_of_arguments()
+    def calc_cell_diff(L, M, R):
+        len_M = len(M)
         temp = None
-        for j in range(int(sqrt(len_M))):
+        for j in range(len_M):
             if temp is None:
                 # https://stackoverflow.com/questions/6473679/transpose-list-
                 # of-lists
-                M_tr = list(map(list, itertools.zip_longest(*M, fillvalue=None)))
-                [M_tr[j].diff(left_poly=L[row][k], right_poly=R.transpose()[col][j]) for k in range(L.number_of_arguments())]
-                temp = L[row]*M.transpose()[j]*R.transpose()[col][j]
+                M_transpose = list(
+                    map(list, itertools.zip_longest(*M, fillvalue=None)))
+                # temp is the derivative applied on the j-th element
+                temp = [M_transpose[int(j/len_M)][j % len_M].diff(
+                    left_poly=L[k], right_poly=R[j])
+                        for k in range(len(L))]
              else:
-                 temp += L[row]*M.transpose()[j]*R.transpose()[col][j]
+                 temp += [M_transpose[int(j/len_M)][j % len_M].diff(
+                     left_poly=L[k], right_poly=R[j])
+                          for k in range(len(L))]
         return temp
 
 
     def diff(self, left_matrix=None, right_matrix=None):
-         # iterate left matrix by rows and right matrix by columns and call the
-         # respective diff command of the kernels with the row/cols as params
+        # iterate left matrix by rows and right matrix by columns and call the
+        # respective diff command of the kernels with the row/cols as params
+        output_matrix = torch.empty_like(self.matrix)
+        for i, l in enumerate(left_matrix.rows()):
+            for j, r in enumerate(right_matrix.columns()):
+                output_matrix[i, j] = calc_cell_diff(l, self.matrix, r)
 
-         return MatrixKernel(output_matrix)
+        return MatrixKernel(output_matrix)
 
 
 
