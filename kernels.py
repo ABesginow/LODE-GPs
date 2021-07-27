@@ -576,10 +576,10 @@ def DiffMatrixKernel(MatrixKernel):
                 temp = [M_transpose[int(j/len_M)][j % len_M].diff(
                     left_poly=L[k], right_poly=R[j])
                         for k in range(len(L))]
-             else:
-                 temp += [M_transpose[int(j/len_M)][j % len_M].diff(
-                     left_poly=L[k], right_poly=R[j])
-                          for k in range(len(L))]
+            else:
+                temp += [M_transpose[int(j/len_M)][j % len_M].diff(
+                    left_poly=L[k], right_poly=R[j])
+                         for k in range(len(L))]
         return temp
 
 
