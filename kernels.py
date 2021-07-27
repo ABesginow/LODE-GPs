@@ -495,8 +495,12 @@ class MatrixKernel(Kernel):
         self.matrix = matrix
         # check if matrix is symmetrical (after init throw in random values and
         # check for symmetry & eigenvalues)
-        for i, kernel in enumerate(self.matrix):
-            setattr(self, f'kernel_{i}', kernel)
+        for i, row in enumerate(self.matrix):
+            for j, kernel in enumerate(row):
+                if kernel is None or kernel == 0:
+                    pass
+                else:
+                    setattr(self, f'kernel_{i}', kernel)
 
     def _diag(self, X):
         """
@@ -544,12 +548,13 @@ class MatrixKernel(Kernel):
                 if temp is None:
                     temp = result1
                 else:
-                    temp = torch.hstack(result1)
+                    temp = torch.hstack([temp, result1])
             # append vertically
             if result is None:
                 result = temp
             else:
-                result = torch.vstack(result, temp)
+                result = torch.vstack([result, temp])
+        print(result)
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
         return result
 
