@@ -570,7 +570,7 @@ class DiffMatrixKernel(MatrixKernel):
             assert "Not all kernels are differentiable"
         super().__init__(matrix, active_dims=active_dims)
 
-    def calc_cell_diff(L, M, R):
+    def calc_cell_diff(self, L, M, R):
         len_M = len(M)
         temp = None
         for j in range(len_M):
@@ -595,6 +595,6 @@ class DiffMatrixKernel(MatrixKernel):
         output_matrix = torch.empty(np.shape(self.matrix))
         for i, l in enumerate(left_matrix.rows()):
             for j, r in enumerate(right_matrix.columns()):
-                output_matrix[i, j] = calc_cell_diff(l, self.matrix, r)
+                output_matrix[i, j] = self.calc_cell_diff(l, self.matrix, r)
 
         return MatrixKernel(output_matrix)
