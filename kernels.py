@@ -566,7 +566,7 @@ class MatrixKernel(Kernel):
 class DiffMatrixKernel(MatrixKernel):
 
     def __init__(self, matrix, active_dims=None):
-        if not all([k == 0 or k.is_diffable for k in matrix]):
+        if not all([k == 0 or k.is_diffable for row in matrix for k in row]):
             assert "Not all kernels are differentiable"
         super().__init__(matrix, active_dims=active_dims)
 
