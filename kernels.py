@@ -592,7 +592,7 @@ class DiffMatrixKernel(MatrixKernel):
     def diff(self, left_matrix=None, right_matrix=None):
         # iterate left matrix by rows and right matrix by columns and call the
         # respective diff command of the kernels with the row/cols as params
-        output_matrix = torch.empty_like(self.matrix)
+        output_matrix = torch.empty(np.shape(self.matrix))
         for i, l in enumerate(left_matrix.rows()):
             for j, r in enumerate(right_matrix.columns()):
                 output_matrix[i, j] = calc_cell_diff(l, self.matrix, r)
