@@ -3,7 +3,7 @@ import torch
 from torch.distributions import constraints
 import torch
 from functools import reduce
-
+from gpytorch.lazy import cat_lazy_tensor
 from gpytorch.kernels.kernel import Kernel
 from pyro.nn.module import PyroParam
 from pyro.nn.module import PyroModule
@@ -543,13 +543,14 @@ class MatrixKernel(Kernel):
             temp = None
             for j, kernel in enumerate(row):
             # Create the result matrix
-                if kernel == 0 or kernel is None:
+                if kernel is None or kernel == 0:
                     result1 = zero_matrix
                 else:
                     result1 = kernel.forward(x1, x2)
                 if temp is None:
                     temp = result1
                 else:
+                    #cat_lazy_tensor
                     temp = torch.hstack([temp, result1])
             # append vertically
             if result is None:
@@ -574,28 +575,43 @@ class DiffMatrixKernel(MatrixKernel):
     def calc_cell_diff(self, L, M, R):
         len_M = len(M)
         temp = None
+        M_transpose = list(
+            map(list, itertools.zip_longest(*M, fillvalue=None)))
         for j in range(len_M):
-            if temp is None:
-                # https://stackoverflow.com/questions/6473679/transpose-list-
-                # of-lists
-                M_transpose = list(
-                    map(list, itertools.zip_longest(*M, fillvalue=None)))
-                # temp is the derivative applied on the j-th element
-                temp = [M_transpose[int(j/len_M)][j % len_M].diff(
-                    left_poly=L[k], right_poly=R[j])
-                        for k in range(len(L))]
-            else:
-                temp += [M_transpose[int(j/len_M)][j % len_M].diff(
-                    left_poly=L[k], right_poly=R[j])
-                         for k in range(len(L))]
+            for r_elem in R:
+                for l_elem in L:
+                    if temp is None:
+                        if M_transpose[int(j/len_M)][j % len_M] is not None:
+                            temp = M_transpose[int(j/len_M)][j % len_M].diff(left_poly=l_elem, right_poly=r_elem)
+                        else:
+                            pass
+                    else:
+                        if M_transpose[int(j/len_M)][j % len_M] is not None:
+                            temp += M_transpose[int(j/len_M)][j % len_M].diff(left_poly=l_elem, right_poly=r_elem)
+                        else:
+                            pass
+
+#            if temp is None:
+#                # https://stackoverflow.com/questions/6473679/transpose-list-
+#                # of-lists
+#                M_transpose = list(
+#                    map(list, itertools.zip_longest(*M, fillvalue=None)))
+#                # temp is the derivative applied on the j-th element
+#                temp = [M_transpose[int(j/len_M)][j % len_M].diff(
+#                    left_poly=L[k], right_poly=R[j])
+#                        for k in range(len(L))]
+#            else:
+#                temp += [M_transpose[int(j/len_M)][j % len_M].diff(
+#                    left_poly=L[k], right_poly=R[j])
+#                         for k in range(len(L))]
         return temp
 
     def diff(self, left_matrix=None, right_matrix=None):
         # iterate left matrix by rows and right matrix by columns and call the
         # respective diff command of the kernels with the row/cols as params
-        output_matrix = torch.empty(np.shape(self.matrix))
-        for i, l, r in zip(left_matrix.rows(), right_matrix.columns()):
-            output_matrix[int(i/np.shape(matrix)[0]),
-                        i % np.shape(self.matrix)[0]]  = self.calc_cell_diff(l, self.matrix, r)
+        output_matrix = [[0 for i in range(np.shape(self.matrix)[1])] for j in range(np.shape(self.matrix)[0])]
+        for i, (l, r) in enumerate(zip(left_matrix.rows(), right_matrix.columns())):
+            output_matrix[int(i/np.shape(self.matrix)[0])][
+                        int(i % np.shape(self.matrix)[0])]  = self.calc_cell_diff(l, self.matrix, r)
 
         return MatrixKernel(output_matrix)
