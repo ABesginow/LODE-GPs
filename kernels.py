@@ -501,8 +501,9 @@ class MatrixKernel(Kernel):
                 if kernel is None or kernel == 0:
                     pass
                 else:
-                    setattr(self, f'kernel_{i}', kernel)
+                    setattr(self, f'kernel_{i}{j}', kernel)
 
+    # TODO aktualisieren
     def _diag(self, X):
         """
         Calculate the diagonal part for each of the kernels and construct a diagonal matrix
@@ -593,8 +594,8 @@ class DiffMatrixKernel(MatrixKernel):
         # iterate left matrix by rows and right matrix by columns and call the
         # respective diff command of the kernels with the row/cols as params
         output_matrix = torch.empty(np.shape(self.matrix))
-        for i, l in enumerate(left_matrix.rows()):
-            for j, r in enumerate(right_matrix.columns()):
-                output_matrix[i, j] = self.calc_cell_diff(l, self.matrix, r)
+        for i, l, r in zip(left_matrix.rows(), right_matrix.columns()):
+            output_matrix[int(i/np.shape(matrix)[0]),
+                        i % np.shape(self.matrix)[0]]  = self.calc_cell_diff(l, self.matrix, r)
 
         return MatrixKernel(output_matrix)
