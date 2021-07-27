@@ -490,6 +490,8 @@ class MatrixKernel(Kernel):
     def __init__(self, matrix, active_dims=None):
         super().__init__(active_dims=active_dims)
         self.num_tasks = np.shape(matrix)[0]
+        if not np.shape(matrix)[0] == np.shape(matrix)[1]:
+            assert "Kernel matrix is not square"
         self.matrix = matrix
         # check if matrix is symmetrical (after init throw in random values and
         # check for symmetry & eigenvalues)
@@ -531,17 +533,23 @@ class MatrixKernel(Kernel):
         zero_matrix = torch.zeros(H_x, H_z)
         #zero_matrix = torch.tensor([[int(0) for i in range(H_z)] for j in range(H_x)])
         result = None
-        for i, kernel in enumerate(self.matrix):
-            result1 = kernel.forward(x1, x2)
-
-            position_tuple = tuple([zero_matrix if not j == i else result1 for j in range(len(self.matrix))])
-            # concat horizontally
-            result1 = torch.cat(position_tuple, int(1))
+        for i, row in enumerate(self.matrix) :
+            temp = None
+            for j, kernel in enumerate(row):
+            # Create the result matrix
+                if kernel is 0 or kernel is None:
+                    result1 = zero_matrix
+                else:
+                    result1 = kernel.forward(x1, x2)
+                if temp is None:
+                    temp = result1
+                else:
+                    temp = torch.hstack(result1)
+            # append vertically
             if result is None:
-                result = result1
+                result = temp
             else:
-                # append vertically
-                result = torch.cat((result, result1), int(0))
+                result = torch.vstack(result, temp)
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
         return result
 
