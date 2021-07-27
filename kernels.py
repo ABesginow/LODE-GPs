@@ -3,7 +3,8 @@ import torch
 from torch.distributions import constraints
 import torch
 from functools import reduce
-from gpytorch.lazy import cat_lazy_tensor
+from gpytorch.lazy import *
+from gpytorch.lazy.non_lazy_tensor import lazify
 from gpytorch.kernels.kernel import Kernel
 from pyro.nn.module import PyroParam
 from pyro.nn.module import PyroModule
@@ -536,7 +537,7 @@ class MatrixKernel(Kernel):
 
         if diag:
             return self._diag(x1)
-        zero_matrix = torch.zeros(H_x, H_z)
+        zero_matrix = lazify(torch.zeros(H_x, H_z))
         #zero_matrix = torch.tensor([[int(0) for i in range(H_z)] for j in range(H_x)])
         result = None
         for i, row in enumerate(self.matrix) :
@@ -546,17 +547,19 @@ class MatrixKernel(Kernel):
                 if kernel is None or kernel == 0:
                     result1 = zero_matrix
                 else:
-                    result1 = kernel.forward(x1, x2)
+                    result1 = lazify(kernel.forward(x1, x2))
                 if temp is None:
                     temp = result1
                 else:
-                    #cat_lazy_tensor
-                    temp = torch.hstack([temp, result1])
+                    import pdb
+                    pdb.set_trace()
+                    temp = CatLazyTensor(*[temp, result1])
+                    #temp = torch.hstack([temp, result1])
             # append vertically
             if result is None:
                 result = temp
             else:
-                result = torch.vstack([result, temp])
+                result = CatLazyTensor(*[result, temp], dim=1)
         print(result)
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
         return result
