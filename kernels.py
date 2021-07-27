@@ -300,7 +300,7 @@ class Diff_SE_kernel(Kernel):
         return deriv_list
 
 
-    def asymmetric_deriv(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2')):
+    def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2')):
 
         derivation_term_dict = self.prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var)
         class diffed_SE_kernel(Kernel):
