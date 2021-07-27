@@ -1,3 +1,4 @@
+import itertools
 import torch
 from torch.distributions import constraints
 import torch
@@ -541,7 +542,7 @@ class MatrixKernel(Kernel):
             temp = None
             for j, kernel in enumerate(row):
             # Create the result matrix
-                if kernel is 0 or kernel is None:
+                if kernel == 0 or kernel is None:
                     result1 = zero_matrix
                 else:
                     result1 = kernel.forward(x1, x2)
@@ -562,7 +563,8 @@ class MatrixKernel(Kernel):
         return self.num_tasks
 
 
-def DiffMatrixKernel(MatrixKernel):
+class DiffMatrixKernel(MatrixKernel):
+
     def __init__(self, matrix, active_dims=None):
         if not all([k == 0 or k.is_diffable for k in matrix]):
             assert "Not all kernels are differentiable"
@@ -587,7 +589,6 @@ def DiffMatrixKernel(MatrixKernel):
                          for k in range(len(L))]
         return temp
 
-
     def diff(self, left_matrix=None, right_matrix=None):
         # iterate left matrix by rows and right matrix by columns and call the
         # respective diff command of the kernels with the row/cols as params
@@ -597,8 +598,3 @@ def DiffMatrixKernel(MatrixKernel):
                 output_matrix[i, j] = calc_cell_diff(l, self.matrix, r)
 
         return MatrixKernel(output_matrix)
-
-
-
-
-
