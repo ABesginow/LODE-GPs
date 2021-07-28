@@ -224,6 +224,9 @@ class Diff_SE_kernel(Kernel):
         # TODO vllt mal mit product() versuchen und vorher die Listen vorbereiten?
         # Check if either left or right 'polynomial' is just an Integer
         # since this is treated differently by sage
+        if left_poly == 1:
+            import pdb
+            #pdb.set_trace()
         for left in (left_poly.operands()
                      if not type(left_poly)
                      in [sage.rings.integer.Integer,
@@ -236,6 +239,9 @@ class Diff_SE_kernel(Kernel):
                                   and len(left_poly.operands()) == 0)
                            ))
                      else [left_poly]):
+            if left_poly == 1:
+                import pdb
+                pdb.set_trace()
             for right in (right_poly.operands()
                           if not type(right_poly)
                           in [sage.rings.integer.Integer,
@@ -392,6 +398,8 @@ class Diff_SE_kernel(Kernel):
 
                 result = None
                 for term in derivation_term_dict:
+                    import pdb
+                    pdb.set_trace()
                     degr_o = term['d^o']
                     degr_p = term['d^p']
                     poly_coeffs = term['coeff']
@@ -537,7 +545,7 @@ class MatrixKernel(Kernel):
 
         if diag:
             return self._diag(x1)
-        zero_matrix = lazify(torch.zeros(H_x, H_z))
+        zero_matrix = torch.zeros(H_x, H_z)
         #zero_matrix = torch.tensor([[int(0) for i in range(H_z)] for j in range(H_x)])
         result = None
         for i, row in enumerate(self.matrix) :
@@ -547,19 +555,30 @@ class MatrixKernel(Kernel):
                 if kernel is None or kernel == 0:
                     result1 = zero_matrix
                 else:
-                    result1 = lazify(kernel.forward(x1, x2))
+                    result1 = kernel.forward(x1, x2)
                 if temp is None:
                     temp = result1
                 else:
-                    import pdb
-                    pdb.set_trace()
-                    temp = CatLazyTensor(*[temp, result1])
-                    #temp = torch.hstack([temp, result1])
+                    #temp = CatLazyTensor(*[temp, result1])
+                    if type(temp) == torch.Tensor and type(result1) == torch.Tensor:
+                        temp = torch.hstack([temp, result1])
+                    else:
+                        import pdb
+                        pdb.set_trace()
+                        a = temp.evaluate()
+                        b = result1.evaluate()
+                        temp = torch.hstack([a, b])
+
             # append vertically
             if result is None:
                 result = temp
             else:
-                result = CatLazyTensor(*[result, temp], dim=1)
+                #result = CatLazyTensor(*[result, temp], dim=1)
+                if type(temp) == torch.Tensor and type(result) == torch.Tensor:
+                    result = torch.vstack([result, temp])
+                else:
+                    result = torch.vstack([result.evaluate(), temp.evaluate()])
+
         print(result)
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
         return result
@@ -583,6 +602,9 @@ class DiffMatrixKernel(MatrixKernel):
         for j in range(len_M):
             for r_elem in R:
                 for l_elem in L:
+                    if l_elem is None or l_elem == 0:
+                        import pdb
+                        pdb.set_trace()
                     if temp is None:
                         if M_transpose[int(j/len_M)][j % len_M] is not None:
                             temp = M_transpose[int(j/len_M)][j % len_M].diff(left_poly=l_elem, right_poly=r_elem)
@@ -614,7 +636,10 @@ class DiffMatrixKernel(MatrixKernel):
         # respective diff command of the kernels with the row/cols as params
         output_matrix = [[0 for i in range(np.shape(self.matrix)[1])] for j in range(np.shape(self.matrix)[0])]
         for i, (l, r) in enumerate(zip(left_matrix.rows(), right_matrix.columns())):
+            res = self.calc_cell_diff(l, self.matrix, r)
             output_matrix[int(i/np.shape(self.matrix)[0])][
-                        int(i % np.shape(self.matrix)[0])]  = self.calc_cell_diff(l, self.matrix, r)
+                        int(i % np.shape(self.matrix)[0])]  = res
 
+        import pdb
+        pdb.set_trace()
         return MatrixKernel(output_matrix)
