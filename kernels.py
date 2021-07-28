@@ -198,9 +198,11 @@ class Diff_SE_kernel(Kernel):
         deriv_dict = {}
         degree = int(d_poly.degree(d_var))
         coeff = []
-        # See if it's of the form a*b*...*x^n or a*b*...*x
-        # and extract the coefficients
-        if (not len(d_poly.operands()) == 0) and any(['^' in str(d_poly.operands()[i]) for i in range(len(d_poly.operands()))]):
+        # It's of the form x^n
+        if len(d_poly.operands()) == 2 and '^' in str(d_poly):
+            coeff.append(torch.tensor(float(1.)))
+        # It's of the form a*b*...*x^n or a*b*...*x extract the coefficients
+        elif (not len(d_poly.operands()) == 0):
             for item in d_poly.operands():
                 # Check if power or d_var is in item and skip that
                 if '^' in str(item) or item.has(d_var):
@@ -217,9 +219,6 @@ class Diff_SE_kernel(Kernel):
                 # if coefficient is constant, float() it
                 else:
                     coeff.append(torch.tensor(float(item)))
-        # Else it's of the form x^n
-        else:
-            coeff.append(torch.tensor(float(1.)))
         return degree, coeff
 
 
