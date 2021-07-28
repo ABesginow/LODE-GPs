@@ -222,38 +222,28 @@ class Diff_SE_kernel(Kernel):
         deriv_list = []
         # simulate multiplication of expressions
         # TODO vllt mal mit product() versuchen und vorher die Listen vorbereiten?
+
         # Check if either left or right 'polynomial' is just an Integer
         # since this is treated differently by sage
-        if left_poly == 1:
-            import pdb
-            #pdb.set_trace()
-        for left in (left_poly.operands()
-                     if not type(left_poly)
-                     in [sage.rings.integer.Integer,
-                         sage.rings.real_mpfr.RealLiteral]
-                     and (not
-                          ((not all(op.has(left_d_var)
-                                    for op in left_poly.operands())
-                            and len(left_poly.operands()) == 2)
-                              or (left_poly.has(left_d_var)
-                                  and len(left_poly.operands()) == 0)
-                           ))
-                     else [left_poly]):
-            if left_poly == 1:
-                import pdb
-                pdb.set_trace()
-            for right in (right_poly.operands()
-                          if not type(right_poly)
-                          in [sage.rings.integer.Integer,
-                              sage.rings.real_mpfr.RealLiteral]
-                          and (not
-                               ((not all(op.has(right_d_var)
-                                         for op in right_poly.operands())
-                                 and len(right_poly.operands()) == 2)
-                                   or (right_poly.has(right_d_var)
-                                       and len(right_poly.operands()) == 0)
-                                ))
-                          else [right_poly]):
+        if type(left_poly) in [sage.rings.integer.Integer,
+                               sage.rings.real_mpfr.RealLiteral]:
+            left_iteration_list = [left_poly]
+        # If it has len == 0 it is a single element expression and produces
+        # empty .operands() list
+        elif len(left_poly.operands()) == 0:
+            left_iteration_list = [left_poly]
+        else:
+            left_iteration_list = left_poly.operands()
+        for left in left_iteration_list:
+            if type(right_poly) in [sage.rings.integer.Integer,
+                                    sage.rings.real_mpfr.RealLiteral]:
+                right_iteration_list = [right_poly]
+            elif len(right_poly.operands()) == 0:
+                right_iteration_list = [right_poly]
+            else:
+                right_iteration_list = right_poly.operands()
+
+            for right in right_iteration_list:
                 left_right = [left, right]
                 # Check if the derivatives are just numbers
                 # ---
