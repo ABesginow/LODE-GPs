@@ -172,6 +172,121 @@ class SageExpression(Kernel):
 class Diff_SE_kernel(Kernel):
 
     asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
+    class diffed_SE_kernel(Kernel):
+        asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
+
+        def __init__(self,  var=None, length=None, active_dims=None):
+            super().__init__(active_dims=active_dims)
+            setattr(self, 'var', torch.nn.Parameter(torch.tensor(float(var))
+                                                    if not var is None else
+                                                    torch.tensor(float(1.)),
+                                                    requires_grad=True))
+            setattr(self, 'length', torch.nn.Parameter(torch.tensor(float(length))
+                                                       if not length is None else
+                                                       torch.tensor(float(1.)),
+                                                       requires_grad=True))
+            self.K_0 = None
+            self.K_1 = None
+            self.K_4 = None
+            self.derivation_term_dict = None
+
+        def set_derivation_term_dict(self, derivation_term_dict):
+            self.derivation_term_dict = derivation_term_dict
+
+        def coeffs(self, given_n):
+            # See http://oeis.org/A096713
+            real_n = int(given_n/2)
+            m, k = var('m, k')
+            # even
+            # T(2*m, k) = (-1)^(m+k)*(2*m)!*2^(k-m)/((m-k)!*(2*k)!), k = 0..m.
+            if given_n % 2 == 0:
+                # This notation is only valid in iPython
+                #T(m,k) = factorial(2*m)*2^(k-m)/(factorial(m-k)*factorial(2*k))
+                # As an actual Python file I need to use:
+                T = lambda m, k : factorial(2*m)*2**(k-m)/(factorial(m-k)*factorial(2*k))
+            # odd
+            # T(2*m+1, k) = (-1)^(m+k)*(2*m+1)!*2^(k-m)/((m-k)!*(2*k+1)!), k = 0..m. (End)
+            else:
+                # See above
+                #T(m,k) = factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
+                T = lambda m, k: factorial(1*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
+
+            return [int(T(real_n, k)) for k in range(real_n+1)]
+
+
+        def _slice_input(self, X):
+            r"""
+            Slices :math:`X` according to ``self.active_dims``. If ``X`` is 1D then returns
+            a 2D tensor with shape :math:`N \times 1`.
+            :param torch.Tensor X: A 1D or 2D input tensor.
+            :returns: a 2D slice of :math:`X`
+            :rtype: torch.Tensor
+            """
+            if X.dim() == 2:
+                return X[:, self.active_dims]
+            elif X.dim() == 1:
+                return X.unsqueeze(1)
+            else:
+                raise ValueError("Input X must be either 1 or 2 dimensional.")
+
+        def _square_scaled_dist(self, X, Z=None):
+            r"""
+            Returns :math:`\|\frac{X-Z}{l}\|^2`.
+            """
+            if Z is None:
+                Z = X
+            if not X.shape[1] == 1:
+                X = self._slice_input(X)
+            if not Z.shape[1] == 1:
+                Z = self._slice_input(Z)
+            if X.size(int(1)) != Z.size(int(1)):
+                raise ValueError("Inputs must have the same number of features.")
+
+            #scaled_X = X / self.length
+            #scaled_Z = Z / self.length
+            X2 = (X ** 2).sum(1, keepdim=True)
+            Z2 = (Z ** 2).sum(1, keepdim=True)
+            XZ = X.matmul(Z.t())
+            self.K_0 = X-Z.t()
+            r2 = X2 - 2 * XZ + Z2.t()
+            self.K_1 = r2.clamp(min=int(0))
+
+
+
+        def forward(self, x1, x2, diag=False, **params):
+            self.result_term = lambda self, l_, coefficients, i, sign, l_exponents, K_1_exponents: \
+            coefficients[i]*(sign*(int(-1)**i))*(l_**l_exponents[i])*(self.K_0**K_1_exponents[i])
+
+            self._square_scaled_dist(x1, x2)
+            self.K_4 = torch.mul(self.var, torch.exp(float(-0.5) * self.K_1*(float(1)/self.length**float(2))))
+
+            #return self.K_1, self.K_4, self.length
+
+            result = None
+            for term in self.derivation_term_dict:
+                degr_o = term['d^o']
+                degr_p = term['d^p']
+                poly_coeffs = term['coeff']
+                sign = self.asym_sign_matr[int(degr_o)%int(4)][int(degr_p)%int(4)]
+                l_exponents = [np.ceil((degr_o+degr_p)/int(2)) + i for i in range(int((degr_o+degr_p)/2)+int(1))]
+#                artificial_degree = np.ceil((degr_o+degr_p)/int(2))
+                K_1_exponents = [int(i*2) if int(degr_o+degr_p)%2 == 0 else int(i*int(2)+int(1)) for i in range(int((degr_o+degr_p)/2)+int(1))]
+                coefficients = self.coeffs(int(degr_o+degr_p))
+                if DEBUG:
+                    print(f"(x1-x2)^i : {K_1_exponents}")
+                    print(f"Coefficients: {coefficients}")
+                    print(f"Starting sign: {sign}")
+                    print(f"l^(2*N) : {l_exponents}")
+                l_ = float(1)/self.length**(float(2))
+                if result is None:
+                    temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
+                    #TODO: This will explode if len(poly_coeffs) > 2
+                    result = sum(temp)*poly_coeffs[int(0)]*poly_coeffs[int(1)]
+                else:
+                    #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
+                    #TODO: This as well
+                    result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*poly_coeffs[0]*poly_coeffs[int(1)]
+            return self.K_4*result
 
 
     def __init__(self,  var=None, length=None, active_dims=None):
@@ -191,10 +306,12 @@ class Diff_SE_kernel(Kernel):
 
 
     # Written for the asymmetric (general) case
-    def single_term_extract(self, d_poly, d_var=var('d')):
+    def single_term_extract(self, d_poly, d_var=var('d'), context=None):
         """
         Returns the degree and the coefficient (either as tensor or as a parameter)
         """
+        if context is None:
+            context = self
         deriv_dict = {}
         degree = int(d_poly.degree(d_var))
         coeff = []
@@ -211,18 +328,20 @@ class Diff_SE_kernel(Kernel):
                 # (if it doesn't exist already)
                 if not item.is_numeric():
                     # If it doesn't exist, a trainable parameter with initial value 1 is created
-                    if not hasattr(self, str(item)):
-                        setattr(self,  str(item),
+                    if not hasattr(context, str(item)):
+                        setattr(context,  str(item),
                                 torch.nn.Parameter(torch.tensor(float(1.)),
                                 requires_grad=True))
-                    coeff.append(getattr(self, str(item)))
+                    coeff.append(getattr(context, str(item)))
                 # if coefficient is constant, float() it
                 else:
                     coeff.append(torch.tensor(float(item)))
         return degree, coeff
 
 
-    def prepare_asym_deriv_dict(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2')):
+    def prepare_asym_deriv_dict(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), context=None):
+        if context is None:
+            context = self
         # Will be filled as follows: [{'d^o': 4, 'd^p': 2, 'coeff':[a, b]}, {'d^o': 3, 'd^p': 3, 'coeff':[1, c]}, ...]
         deriv_list = []
         # simulate multiplication of expressions
@@ -290,7 +409,7 @@ class Diff_SE_kernel(Kernel):
                                   and len(d_poly.operands()) == 0)):
                         import pdb
                         pdb.set_trace()
-                        degr, coeff = self.single_term_extract(d_poly, d_var)
+                        degr, coeff = self.single_term_extract(d_poly, d_var, context)
                     # If the operand does not contain a "d" it is a constant
                     # TODO: This should never happen since the first if
                     # catches this case
@@ -300,7 +419,7 @@ class Diff_SE_kernel(Kernel):
                     else:
                         # If it contains a "d" it is a derivative
                         # "append" the new dict to the previous dict
-                        degr, coeff = self.single_term_extract(d_poly, d_var)
+                        degr, coeff = self.single_term_extract(d_poly, d_var, context)
                     if d_var == left_d_var:
                         deriv_entry['d^o'] = degr
                     else:
@@ -311,120 +430,10 @@ class Diff_SE_kernel(Kernel):
 
 
     def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2')):
-
-        derivation_term_dict = self.prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var)
-        class diffed_SE_kernel(Kernel):
-            asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
-
-            def __init__(self,  var=None, length=None, active_dims=None):
-                super().__init__(active_dims=active_dims)
-                setattr(self, 'var', torch.nn.Parameter(torch.tensor(float(var))
-                                                        if not var is None else
-                                                        torch.tensor(float(1.)),
-                                                        requires_grad=True))
-                setattr(self, 'length', torch.nn.Parameter(torch.tensor(float(length))
-                                                           if not length is None else
-                                                           torch.tensor(float(1.)),
-                                                           requires_grad=True))
-                self.K_0 = None
-                self.K_1 = None
-                self.K_4 = None
-
-            def coeffs(self, given_n):
-                # See http://oeis.org/A096713
-                real_n = int(given_n/2)
-                m, k = var('m, k')
-                # even
-                # T(2*m, k) = (-1)^(m+k)*(2*m)!*2^(k-m)/((m-k)!*(2*k)!), k = 0..m.
-                if given_n % 2 == 0:
-                    # This notation is only valid in iPython
-                    #T(m,k) = factorial(2*m)*2^(k-m)/(factorial(m-k)*factorial(2*k))
-                    # As an actual Python file I need to use:
-                    T = lambda m, k : factorial(2*m)*2**(k-m)/(factorial(m-k)*factorial(2*k))
-                # odd
-                # T(2*m+1, k) = (-1)^(m+k)*(2*m+1)!*2^(k-m)/((m-k)!*(2*k+1)!), k = 0..m. (End)
-                else:
-                    # See above
-                    #T(m,k) = factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
-                    T = lambda m, k: factorial(1*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
-
-                return [int(T(real_n, k)) for k in range(real_n+1)]
-
-
-            def _slice_input(self, X):
-                r"""
-                Slices :math:`X` according to ``self.active_dims``. If ``X`` is 1D then returns
-                a 2D tensor with shape :math:`N \times 1`.
-                :param torch.Tensor X: A 1D or 2D input tensor.
-                :returns: a 2D slice of :math:`X`
-                :rtype: torch.Tensor
-                """
-                if X.dim() == 2:
-                    return X[:, self.active_dims]
-                elif X.dim() == 1:
-                    return X.unsqueeze(1)
-                else:
-                    raise ValueError("Input X must be either 1 or 2 dimensional.")
-
-            def _square_scaled_dist(self, X, Z=None):
-                r"""
-                Returns :math:`\|\frac{X-Z}{l}\|^2`.
-                """
-                if Z is None:
-                    Z = X
-                if not X.shape[1] == 1:
-                    X = self._slice_input(X)
-                if not Z.shape[1] == 1:
-                    Z = self._slice_input(Z)
-                if X.size(int(1)) != Z.size(int(1)):
-                    raise ValueError("Inputs must have the same number of features.")
-
-                #scaled_X = X / self.length
-                #scaled_Z = Z / self.length
-                X2 = (X ** 2).sum(1, keepdim=True)
-                Z2 = (Z ** 2).sum(1, keepdim=True)
-                XZ = X.matmul(Z.t())
-                self.K_0 = X-Z.t()
-                r2 = X2 - 2 * XZ + Z2.t()
-                self.K_1 = r2.clamp(min=int(0))
-
-
-
-            def forward(self, x1, x2, diag=False, **params):
-                self.result_term = lambda self, l_, coefficients, i, sign, l_exponents, K_1_exponents: \
-                coefficients[i]*(sign*(int(-1)**i))*(l_**l_exponents[i])*(self.K_0**K_1_exponents[i])
-
-                self._square_scaled_dist(x1, x2)
-                self.K_4 = torch.mul(self.var, torch.exp(float(-0.5) * self.K_1*(float(1)/self.length**float(2))))
-
-                #return self.K_1, self.K_4, self.length
-
-                result = None
-                for term in derivation_term_dict:
-                    degr_o = term['d^o']
-                    degr_p = term['d^p']
-                    poly_coeffs = term['coeff']
-                    sign = self.asym_sign_matr[int(degr_o)%int(4)][int(degr_p)%int(4)]
-                    l_exponents = [np.ceil((degr_o+degr_p)/int(2)) + i for i in range(int((degr_o+degr_p)/2)+int(1))]
-#                artificial_degree = np.ceil((degr_o+degr_p)/int(2))
-                    K_1_exponents = [int(i*2) if int(degr_o+degr_p)%2 == 0 else int(i*int(2)+int(1)) for i in range(int((degr_o+degr_p)/2)+int(1))]
-                    coefficients = self.coeffs(int(degr_o+degr_p))
-                    if DEBUG:
-                        print(f"(x1-x2)^i : {K_1_exponents}")
-                        print(f"Coefficients: {coefficients}")
-                        print(f"Starting sign: {sign}")
-                        print(f"l^(2*N) : {l_exponents}")
-                    l_ = float(1)/self.length**(float(2))
-                    if result is None:
-                        temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
-                        #TODO: This will explore if len(poly_coeffs) > 2
-                        result = sum(temp)*poly_coeffs[int(0)]*poly_coeffs[int(1)]
-                    else:
-                        #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
-                        #TODO: This as well
-                        result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*poly_coeffs[0]*poly_coeffs[int(1)]
-                return self.K_4*result
-        return diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
+        context = self.diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
+        derivation_term_dict = self.prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var, context)
+        context.set_derivation_term_dict(derivation_term_dict)
+        return context
 
 
     def _square_scaled_dist(self, X, Z=None):
