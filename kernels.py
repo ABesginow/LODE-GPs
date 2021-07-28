@@ -197,6 +197,8 @@ class Diff_SE_kernel(Kernel):
         """
         deriv_dict = {}
         degree = int(d_poly.degree(d_var))
+        import pdb
+        pdb.set_trace()
         # See if it's of the form a*x^n
         if (not len(d_poly.operands()) == 0) and ('^' in str(d_poly.operands()[0]) or '^' in str(d_poly.operands()[1])):
             # 1 if the coefficient is in [1], else it must be in [0]
@@ -231,6 +233,12 @@ class Diff_SE_kernel(Kernel):
         # If it has len == 0 it is a single element expression and produces
         # empty .operands() list
         elif len(left_poly.operands()) == 0:
+            left_iteration_list = [left_poly]
+        # IF left_poly.operands() is non empty AND every element has
+        # left_d_var -> sum of deriv expressions
+        # ELSE -> (list of) constant(s) in front of deriv variable
+        elif (not all(op.has(left_d_var) for op in left_poly.operands())
+               and len(left_poly.operands()) >= 2):
             left_iteration_list = [left_poly]
         else:
             left_iteration_list = left_poly.operands()
@@ -274,9 +282,11 @@ class Diff_SE_kernel(Kernel):
                         degr = 0
                         coeff = torch.tensor(float(d_poly))
                     elif ((not all(op.has(d_var) for op in d_poly.operands())
-                           and len(d_poly.operands()) == 2)
+                           and len(d_poly.operands()) >= 2)
                               or (d_poly.has(d_var)
                                   and len(d_poly.operands()) == 0)):
+                        import pdb
+                        pdb.set_trace()
                         degr, coeff = self.single_term_extract(d_poly, d_var)
                     # If the operand does not contain a "d" it is a constant
                     # TODO: This should never happen since the first if
