@@ -321,7 +321,6 @@ class Diff_SE_kernel(Kernel):
             coeff.append(torch.tensor(float(1.)))
         # It's of the form a*b*...*x^n or a*b*...*x extract the coefficients
         elif (not len(d_poly.operands()) == 0):
-            pdb.set_trace()
             for item in d_poly.operands():
                 # Check if power or d_var is in item and skip that
                 if '^' in str(item) or item.has(d_var):
@@ -329,6 +328,7 @@ class Diff_SE_kernel(Kernel):
                 # if coefficient is a variable, create torch parameter
                 # (if it doesn't exist already)
                 if not item.is_numeric():
+                    pdb.set_trace()
                     # If it doesn't exist, a trainable parameter with initial value 1 is created
                     if not hasattr(context, str(item)):
                         setattr(context,  str(item),
@@ -402,7 +402,7 @@ class Diff_SE_kernel(Kernel):
                     # Check if either left or right is number
                     # -> make coefficient
                     if type(d_poly) in [sage.rings.integer.Integer,
-                                        sage.rings.real_mpfr.RealLiteral]:
+                                        sage.rings.real_mpfr.RealLiteral] or d_poly.is_numeric():
                         degr = 0
                         coeff = [torch.tensor(float(d_poly))]
                     elif ((not all(op.has(d_var) for op in d_poly.operands())
@@ -411,11 +411,15 @@ class Diff_SE_kernel(Kernel):
                                   and len(d_poly.operands()) == 0)):
                         degr, coeff = self.single_term_extract(d_poly, d_var, context)
                     # If the operand does not contain a "d" it is a constant
-                    # TODO: This should never happen since the first if
-                    # catches this case
+                    # -> add the constant as variable in the context
                     elif not d_poly.has(d_var):
+
+                        if not hasattr(context, str(d_poly)):
+                            setattr(context,  str(d_poly),
+                                    torch.nn.Parameter(torch.tensor(float(1.)),
+                                    requires_grad=True))
+                        coeff = [getattr(context, str(d_poly))]
                         degr = 0
-                        coeff = [torch.tensor(float(d_poly))]
                     else:
                         # If it contains a "d" it is a derivative
                         # "append" the new dict to the previous dict
@@ -429,12 +433,13 @@ class Diff_SE_kernel(Kernel):
         return deriv_list
 
 
-    def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2')):
-        context = self.diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
-        derivation_term_dict = self.prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var, context)
-        context.set_derivation_term_dict(derivation_term_dict)
-        return context
-
+    def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None):
+        diffed_kernel = self.diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
+        if parent_context is None:
+            parent_context = diffed_kernel
+        derivation_term_dict = self.prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var, parent_context)
+        diffed_kernel.set_derivation_term_dict(derivation_term_dict)
+        return diffed_kernel
 
     def _square_scaled_dist(self, X, Z=None):
         r"""
@@ -511,6 +516,8 @@ class MatrixKernel(Kernel):
 
     def __init__(self, matrix, active_dims=None):
         super().__init__(active_dims=active_dims)
+        if matrix is None:
+            return
         self.num_tasks = np.shape(matrix)[0]
         if not np.shape(matrix)[0] == np.shape(matrix)[1]:
             assert "Kernel matrix is not square"
@@ -523,6 +530,22 @@ class MatrixKernel(Kernel):
                     pass
                 else:
                     setattr(self, f'kernel_{i}{j}', kernel)
+
+    def set_matrix(self, matrix):
+        self.num_tasks = np.shape(matrix)[0]
+        self.matrix = matrix
+        if not np.shape(matrix)[0] == np.shape(matrix)[1]:
+            assert "Kernel matrix is not square"
+        self.matrix = matrix
+        # check if matrix is symmetrical (after init throw in random values and
+        # check for symmetry & eigenvalues)
+        for i, row in enumerate(self.matrix):
+            for j, kernel in enumerate(row):
+                if kernel is None or kernel == 0:
+                    pass
+                else:
+                    setattr(self, f'kernel_{i}{j}', kernel)
+
 
     # TODO aktualisieren
     def _diag(self, X):
@@ -604,7 +627,7 @@ class DiffMatrixKernel(MatrixKernel):
             assert "Not all kernels are differentiable"
         super().__init__(matrix, active_dims=active_dims)
 
-    def calc_cell_diff(self, L, M, R):
+    def calc_cell_diff(self, L, M, R, context=None):
         len_M = len(M)
         temp = None
         M_transpose = list(
@@ -614,12 +637,12 @@ class DiffMatrixKernel(MatrixKernel):
                 for l_elem in L:
                     if temp is None:
                         if M_transpose[int(j/len_M)][j % len_M] is not None:
-                            temp = M_transpose[int(j/len_M)][j % len_M].diff(left_poly=l_elem, right_poly=r_elem)
+                            temp = M_transpose[int(j/len_M)][j % len_M].diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
                         else:
                             pass
                     else:
                         if M_transpose[int(j/len_M)][j % len_M] is not None:
-                            temp += M_transpose[int(j/len_M)][j % len_M].diff(left_poly=l_elem, right_poly=r_elem)
+                            temp += M_transpose[int(j/len_M)][j % len_M].diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
                         else:
                             pass
 
@@ -641,10 +664,11 @@ class DiffMatrixKernel(MatrixKernel):
     def diff(self, left_matrix=None, right_matrix=None):
         # iterate left matrix by rows and right matrix by columns and call the
         # respective diff command of the kernels with the row/cols as params
+        kernel = MatrixKernel(None)
         output_matrix = [[0 for i in range(np.shape(self.matrix)[1])] for j in range(np.shape(self.matrix)[0])]
         for i, (l, r) in enumerate(itertools.product(left_matrix.rows(), right_matrix.columns())):
-            res = self.calc_cell_diff(l, self.matrix, r)
+            res = self.calc_cell_diff(l, self.matrix, r, context=kernel)
             output_matrix[int(i/np.shape(self.matrix)[0])][
                         int(i % np.shape(self.matrix)[0])]  = res
-
-        return MatrixKernel(output_matrix)
+        kernel.set_matrix(output_matrix)
+        return kernel
