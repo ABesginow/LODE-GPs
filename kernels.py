@@ -282,7 +282,6 @@ class Diff_SE_kernel(Kernel):
                 if result is None:
                     temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
                     #TODO: This will explode if len(poly_coeffs) > 2
-                    pdb.set_trace()
                     result = sum(temp)*np.prod(flattened_poly_coeffs)
                 else:
                     #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
@@ -322,6 +321,7 @@ class Diff_SE_kernel(Kernel):
             coeff.append(torch.tensor(float(1.)))
         # It's of the form a*b*...*x^n or a*b*...*x extract the coefficients
         elif (not len(d_poly.operands()) == 0):
+            pdb.set_trace()
             for item in d_poly.operands():
                 # Check if power or d_var is in item and skip that
                 if '^' in str(item) or item.has(d_var):
@@ -404,7 +404,7 @@ class Diff_SE_kernel(Kernel):
                     if type(d_poly) in [sage.rings.integer.Integer,
                                         sage.rings.real_mpfr.RealLiteral]:
                         degr = 0
-                        coeff = torch.tensor(float(d_poly))
+                        coeff = [torch.tensor(float(d_poly))]
                     elif ((not all(op.has(d_var) for op in d_poly.operands())
                            and len(d_poly.operands()) >= 2)
                               or (d_poly.has(d_var)
@@ -415,7 +415,7 @@ class Diff_SE_kernel(Kernel):
                     # catches this case
                     elif not d_poly.has(d_var):
                         degr = 0
-                        coeff = torch.tensor(float(d_poly))
+                        coeff = [torch.tensor(float(d_poly))]
                     else:
                         # If it contains a "d" it is a derivative
                         # "append" the new dict to the previous dict
