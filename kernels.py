@@ -267,6 +267,7 @@ class Diff_SE_kernel(Kernel):
                 degr_o = term['d^o']
                 degr_p = term['d^p']
                 poly_coeffs = term['coeff']
+                flattened_poly_coeffs = [k for sublist in poly_coeffs for k in sublist]
                 sign = self.asym_sign_matr[int(degr_o)%int(4)][int(degr_p)%int(4)]
                 l_exponents = [np.ceil((degr_o+degr_p)/int(2)) + i for i in range(int((degr_o+degr_p)/2)+int(1))]
 #                artificial_degree = np.ceil((degr_o+degr_p)/int(2))
@@ -281,11 +282,12 @@ class Diff_SE_kernel(Kernel):
                 if result is None:
                     temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
                     #TODO: This will explode if len(poly_coeffs) > 2
-                    result = sum(temp)*poly_coeffs[int(0)]*poly_coeffs[int(1)]
+                    pdb.set_trace()
+                    result = sum(temp)*prod(flattened_poly_coeffs)
                 else:
                     #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
                     #TODO: This as well
-                    result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*poly_coeffs[0]*poly_coeffs[int(1)]
+                    result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*prod(flattened_poly_coeffs)
             return self.K_4*result
 
 
@@ -315,8 +317,8 @@ class Diff_SE_kernel(Kernel):
         deriv_dict = {}
         degree = int(d_poly.degree(d_var))
         coeff = []
-        # It's of the form x^n
-        if len(d_poly.operands()) == 2 and '^' in str(d_poly):
+        # It's of the form x^n or x
+        if (len(d_poly.operands()) == 2 and '^' in str(d_poly)) or ((len(d_poly.operands()) == 0) and d_poly.has(d_var)):
             coeff.append(torch.tensor(float(1.)))
         # It's of the form a*b*...*x^n or a*b*...*x extract the coefficients
         elif (not len(d_poly.operands()) == 0):
@@ -407,8 +409,6 @@ class Diff_SE_kernel(Kernel):
                            and len(d_poly.operands()) >= 2)
                               or (d_poly.has(d_var)
                                   and len(d_poly.operands()) == 0)):
-                        import pdb
-                        pdb.set_trace()
                         degr, coeff = self.single_term_extract(d_poly, d_var, context)
                     # If the operand does not contain a "d" it is a constant
                     # TODO: This should never happen since the first if
