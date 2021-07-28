@@ -557,6 +557,8 @@ class MatrixKernel(Kernel):
             if result is None:
                 result = temp
             else:
+                # If, at some point, 'CatLazyTensor' supports step_slicing
+                # rewrite everything to use CatLazyTensors and lazy Tensors
                 #result = CatLazyTensor(*[result, temp], dim=1)
                 if type(temp) == torch.Tensor and type(result) == torch.Tensor:
                     result = torch.vstack([result, temp])
@@ -586,9 +588,6 @@ class DiffMatrixKernel(MatrixKernel):
         for j in range(len_M):
             for r_elem in R:
                 for l_elem in L:
-                    if l_elem is None or l_elem == 0:
-                        import pdb
-                        pdb.set_trace()
                     if temp is None:
                         if M_transpose[int(j/len_M)][j % len_M] is not None:
                             temp = M_transpose[int(j/len_M)][j % len_M].diff(left_poly=l_elem, right_poly=r_elem)
@@ -619,7 +618,7 @@ class DiffMatrixKernel(MatrixKernel):
         # iterate left matrix by rows and right matrix by columns and call the
         # respective diff command of the kernels with the row/cols as params
         output_matrix = [[0 for i in range(np.shape(self.matrix)[1])] for j in range(np.shape(self.matrix)[0])]
-        for i, (l, r) in enumerate(zip(left_matrix.rows(), right_matrix.columns())):
+        for i, (l, r) in enumerate(itertools.product(left_matrix.rows(), right_matrix.columns())):
             res = self.calc_cell_diff(l, self.matrix, r)
             output_matrix[int(i/np.shape(self.matrix)[0])][
                         int(i % np.shape(self.matrix)[0])]  = res
