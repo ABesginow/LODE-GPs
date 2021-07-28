@@ -283,11 +283,11 @@ class Diff_SE_kernel(Kernel):
                     temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
                     #TODO: This will explode if len(poly_coeffs) > 2
                     pdb.set_trace()
-                    result = sum(temp)*prod(flattened_poly_coeffs)
+                    result = sum(temp)*np.prod(flattened_poly_coeffs)
                 else:
                     #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
                     #TODO: This as well
-                    result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*prod(flattened_poly_coeffs)
+                    result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*np.prod(flattened_poly_coeffs)
             return self.K_4*result
 
 
