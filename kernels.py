@@ -388,8 +388,6 @@ class Diff_SE_kernel(Kernel):
 
                 result = None
                 for term in derivation_term_dict:
-                    import pdb
-                    pdb.set_trace()
                     degr_o = term['d^o']
                     degr_p = term['d^p']
                     poly_coeffs = term['coeff']
@@ -553,11 +551,7 @@ class MatrixKernel(Kernel):
                     if type(temp) == torch.Tensor and type(result1) == torch.Tensor:
                         temp = torch.hstack([temp, result1])
                     else:
-                        import pdb
-                        pdb.set_trace()
-                        a = temp.evaluate()
-                        b = result1.evaluate()
-                        temp = torch.hstack([a, b])
+                        temp = torch.hstack([temp.evaluate(), result1.evaluate()])
 
             # append vertically
             if result is None:
@@ -630,6 +624,4 @@ class DiffMatrixKernel(MatrixKernel):
             output_matrix[int(i/np.shape(self.matrix)[0])][
                         int(i % np.shape(self.matrix)[0])]  = res
 
-        import pdb
-        pdb.set_trace()
         return MatrixKernel(output_matrix)
