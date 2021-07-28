@@ -197,25 +197,29 @@ class Diff_SE_kernel(Kernel):
         """
         deriv_dict = {}
         degree = int(d_poly.degree(d_var))
-        import pdb
-        pdb.set_trace()
-        # See if it's of the form a*x^n
-        if (not len(d_poly.operands()) == 0) and ('^' in str(d_poly.operands()[0]) or '^' in str(d_poly.operands()[1])):
-            # 1 if the coefficient is in [1], else it must be in [0]
-            coeff_index = int('^' in str(d_poly.operands()[0]))
-            coeff = None
-            if not d_poly.operands()[coeff_index].is_numeric():
-                # If it doesn't exist, a trainable parameter with initial value 1 is created
-                if not hasattr(self, str(d_poly.operands()[coeff_index])):
-                    setattr(self,  str(d_poly.operands()[coeff_index]),
-                            torch.nn.Parameter(torch.tensor(float(1.)),
-                            requires_grad=True))
-                coeff = getattr(self, str(d_poly.operands()[coeff_index]))
-            else:
-                coeff = torch.tensor(float(d_poly.operands()[coeff_index]))
+        coeff = []
+        # See if it's of the form a*b*...*x^n or a*b*...*x
+        # and extract the coefficients
+        if (not len(d_poly.operands()) == 0) and any(['^' in str(d_poly.operands()[i]) for i in range(len(d_poly.operands()))]):
+            for item in d_poly.operands():
+                # Check if power or d_var is in item and skip that
+                if '^' in str(item) or item.has(d_var):
+                    continue
+                # if coefficient is a variable, create torch parameter
+                # (if it doesn't exist already)
+                if not item.is_numeric():
+                    # If it doesn't exist, a trainable parameter with initial value 1 is created
+                    if not hasattr(self, str(item)):
+                        setattr(self,  str(item),
+                                torch.nn.Parameter(torch.tensor(float(1.)),
+                                requires_grad=True))
+                    coeff.append(getattr(self, str(item)))
+                # if coefficient is constant, float() it
+                else:
+                    coeff.append(torch.tensor(float(item)))
         # Else it's of the form x^n
         else:
-            coeff = torch.tensor(float(1.))
+            coeff.append(torch.tensor(float(1.)))
         return degree, coeff
 
 
@@ -414,9 +418,11 @@ class Diff_SE_kernel(Kernel):
                     l_ = float(1)/self.length**(float(2))
                     if result is None:
                         temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
+                        #TODO: This will explore if len(poly_coeffs) > 2
                         result = sum(temp)*poly_coeffs[int(0)]*poly_coeffs[int(1)]
                     else:
                         #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
+                        #TODO: This as well
                         result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*poly_coeffs[0]*poly_coeffs[int(1)]
                 return self.K_4*result
         return diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
