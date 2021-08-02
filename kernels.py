@@ -16,6 +16,27 @@ import numpy as np
 import pdb
 
 DEBUG = False
+def make_symmetric(matrix):
+    # matrix can either be list or torch.Tensor
+    if not type(matrix) in [torch.Tensor, list]:
+        assert "Can only deal with 'torch.Tensor' and 'list'"
+    if type(matrix) is list:
+        # Check that it is 2D
+        if not len(np.shape(matrix)) == 2 and not np.shape(matrix)[0] == np.shape(matrix)[1]:
+            assert "List is not 2D or dimensions are not of equal size"
+        row_len = np.shape(matrix)[0]
+    if type(matrix) is torch.Tensor:
+        if not matrix.dim() == 2 and not matrix.shape[0] == matrix.shape[1]:
+            assert "Tensor is not 2D or dimensions are not of equal size"
+        row_len = matrix.shape[0]
+    # Size for iteration to make it in single loop
+    size = row_len**2
+    for i in range(size):
+        matrix[i % row_len][int(i/row_len)] = matrix[int(i/row_len)][i % row_len]
+
+    return matrix
+
+
 class SageExpression(Kernel):
 
     def __init__(self, input_dim, base_fkt :sage.symbolic.expression.Expression, hyperparameters:dict=None, var1=var('x1'), var2=var('x2'), active_dims=None):
@@ -514,6 +535,7 @@ class Diff_SE_kernel(Kernel):
 class MatrixKernel(Kernel):
 
 
+
     def __init__(self, matrix, active_dims=None):
         super().__init__(active_dims=active_dims)
         if matrix is None:
@@ -521,7 +543,10 @@ class MatrixKernel(Kernel):
         self.num_tasks = np.shape(matrix)[0]
         if not np.shape(matrix)[0] == np.shape(matrix)[1]:
             assert "Kernel matrix is not square"
+        # Set the lower triangle to be symmetric to the upper triangle
+        matrix = make_symmetric(matrix)
         self.matrix = matrix
+
         # check if matrix is symmetrical (after init throw in random values and
         # check for symmetry & eigenvalues)
         for i, row in enumerate(self.matrix):
