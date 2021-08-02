@@ -648,26 +648,29 @@ class DiffMatrixKernel(MatrixKernel):
             assert "Not all kernels are differentiable"
         super().__init__(matrix, active_dims=active_dims)
 
-    def calc_cell_diff(self, L, M, R, context=None):
-        len_M = len(M)
+
+    def calc_cell_diff(L, M, R, context=None):
         temp = None
         # https://stackoverflow.com/questions/6473679/transpose-list-
         # of-lists
         M_transpose = list(
-            map(list, itertools.zip_longest(*M, fillvalue=None)))
-        for j in range(len_M):
-            for r_elem in R:
-                for l_elem in L:
-                    if temp is None:
-                        if M_transpose[int(j/len_M)][j % len_M] is not None:
-                            temp = M_transpose[int(j/len_M)][j % len_M].diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
-                        else:
-                            pass
+           map(list, itertools.zip_longest(*M, fillvalue=None)))
+        # Every row in 'M' is combined with each elem of the row given in 'R'
+        # Or: For each elemtn in row 'R' combine with 'row_M'
+        for r_elem, row_M in zip(R, M_transpose):
+            # Each element in L gets exactly one element in 'row_M' to multiply
+            # Or: Combine each element in row_M with exactly one element in 'L'
+            for l_elem, m_elem in zip(L, row_M):
+                if temp is None:
+                    if m_elem is not None:
+                        temp = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
                     else:
-                        if M_transpose[int(j/len_M)][j % len_M] is not None:
-                            temp += M_transpose[int(j/len_M)][j % len_M].diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
-                        else:
-                            pass
+                        pass
+                else:
+                    if m_elem is not None:
+                        temp += m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
+                    else:
+                        pass
         return temp
 
     def diff(self, left_matrix=None, right_matrix=None):
