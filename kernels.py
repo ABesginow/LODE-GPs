@@ -649,7 +649,7 @@ class DiffMatrixKernel(MatrixKernel):
         super().__init__(matrix, active_dims=active_dims)
 
 
-    def calc_cell_diff(L, M, R, context=None):
+    def calc_cell_diff(self, L, M, R, context=None):
         temp = None
         # https://stackoverflow.com/questions/6473679/transpose-list-
         # of-lists
