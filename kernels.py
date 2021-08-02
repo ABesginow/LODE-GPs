@@ -349,7 +349,6 @@ class Diff_SE_kernel(Kernel):
                 # if coefficient is a variable, create torch parameter
                 # (if it doesn't exist already)
                 if not item.is_numeric():
-                    pdb.set_trace()
                     # If it doesn't exist, a trainable parameter with initial value 1 is created
                     if not hasattr(context, str(item)):
                         setattr(context,  str(item),
@@ -633,10 +632,9 @@ class MatrixKernel(Kernel):
                 # rewrite everything to use CatLazyTensors and lazy Tensors
                 #result = CatLazyTensor(*[result, temp], dim=1)
                 result = torch.vstack([delazify(result), delazify(temp)])
-        print(result)
-        result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
-        pdb.set_trace()
         result = make_symmetric(result)
+        result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
+        print(result)
         return result
 
     def num_outputs_per_input(self, x1, x2):
