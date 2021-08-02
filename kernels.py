@@ -611,8 +611,10 @@ class MatrixKernel(Kernel):
         result = None
         for i, row in enumerate(self.matrix) :
             temp = None
-            for j, kernel in enumerate(row):
+            for j, kernel in enumerate(row[i:]):
             # Create the result matrix
+                if j < i:
+                    temp = torch.hstack([zero_matrix for p in range(i-j)])
                 if kernel is None or kernel == 0:
                     result1 = zero_matrix
                 else:
@@ -637,9 +639,9 @@ class MatrixKernel(Kernel):
                     result = torch.vstack([result, temp])
                 else:
                     result = torch.vstack([result.evaluate(), temp.evaluate()])
-
         print(result)
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
+        result = make_symmetric(result)
         return result
 
     def num_outputs_per_input(self, x1, x2):
