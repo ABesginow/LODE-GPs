@@ -4,7 +4,7 @@ from torch.distributions import constraints
 import torch
 from functools import reduce
 from gpytorch.lazy import *
-from gpytorch.lazy.non_lazy_tensor import lazify
+from gpytorch.lazy.non_lazy_tensor import  lazify
 from gpytorch.kernels.kernel import Kernel
 from pyro.nn.module import PyroParam
 from pyro.nn.module import PyroModule
@@ -623,10 +623,7 @@ class MatrixKernel(Kernel):
                     temp = result1
                 else:
                     #temp = CatLazyTensor(*[temp, result1])
-                    if type(temp) == torch.Tensor and type(result1) == torch.Tensor:
-                        temp = torch.hstack([temp, result1])
-                    else:
-                        temp = torch.hstack([temp.evaluate(), result1.evaluate()])
+                    temp = torch.hstack([delazify(temp), delazify(result1)])
 
             # append vertically
             if result is None:
@@ -635,12 +632,10 @@ class MatrixKernel(Kernel):
                 # If, at some point, 'CatLazyTensor' supports step_slicing
                 # rewrite everything to use CatLazyTensors and lazy Tensors
                 #result = CatLazyTensor(*[result, temp], dim=1)
-                if type(temp) == torch.Tensor and type(result) == torch.Tensor:
-                    result = torch.vstack([result, temp])
-                else:
-                    result = torch.vstack([result.evaluate(), temp.evaluate()])
+                result = torch.vstack([delazify(result), delazify(temp)])
         print(result)
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
+        pdb.set_trace()
         result = make_symmetric(result)
         return result
 
