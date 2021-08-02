@@ -651,6 +651,8 @@ class DiffMatrixKernel(MatrixKernel):
     def calc_cell_diff(self, L, M, R, context=None):
         len_M = len(M)
         temp = None
+        # https://stackoverflow.com/questions/6473679/transpose-list-
+        # of-lists
         M_transpose = list(
             map(list, itertools.zip_longest(*M, fillvalue=None)))
         for j in range(len_M):
@@ -666,20 +668,6 @@ class DiffMatrixKernel(MatrixKernel):
                             temp += M_transpose[int(j/len_M)][j % len_M].diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
                         else:
                             pass
-
-#            if temp is None:
-#                # https://stackoverflow.com/questions/6473679/transpose-list-
-#                # of-lists
-#                M_transpose = list(
-#                    map(list, itertools.zip_longest(*M, fillvalue=None)))
-#                # temp is the derivative applied on the j-th element
-#                temp = [M_transpose[int(j/len_M)][j % len_M].diff(
-#                    left_poly=L[k], right_poly=R[j])
-#                        for k in range(len(L))]
-#            else:
-#                temp += [M_transpose[int(j/len_M)][j % len_M].diff(
-#                    left_poly=L[k], right_poly=R[j])
-#                         for k in range(len(L))]
         return temp
 
     def diff(self, left_matrix=None, right_matrix=None):
