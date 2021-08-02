@@ -561,6 +561,7 @@ class MatrixKernel(Kernel):
         self.matrix = matrix
         if not np.shape(matrix)[0] == np.shape(matrix)[1]:
             assert "Kernel matrix is not square"
+        matrix = make_symmetric(matrix)
         self.matrix = matrix
         # check if matrix is symmetrical (after init throw in random values and
         # check for symmetry & eigenvalues)
