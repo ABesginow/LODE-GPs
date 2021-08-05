@@ -15,7 +15,7 @@ from sage.arith.misc import factorial
 import numpy as np
 import pdb
 
-DEBUG = False
+DEBUG =False
 def make_symmetric(matrix):
     # matrix can either be list or torch.Tensor
     if not type(matrix) in [torch.Tensor, list]:
@@ -634,6 +634,11 @@ class MatrixKernel(Kernel):
                 result = torch.vstack([delazify(result), delazify(temp)])
         result = make_symmetric(result)
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
+        DEBG = True
+        if DEBG:
+            if not all([True if e[0] > -0.00001  else False for e in torch.eig(result)[0]]):
+                print(torch.eig(result)[0])
+                assert "Not all Eigenvalues positive"
         print(result)
         return result
 
