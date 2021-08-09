@@ -632,8 +632,11 @@ class MatrixKernel(Kernel):
                 # rewrite everything to use CatLazyTensors and lazy Tensors
                 #result = CatLazyTensor(*[result, temp], dim=1)
                 result = torch.vstack([delazify(result), delazify(temp)])
+        print(f"Result:\n{result}")
         result = make_symmetric(result)
+        print(f"Symmetric result:\n{result}")
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
+        print(f"Interleaved result:\n{result}")
         DEBG = True
         if DEBG:
             if not all([True if e[0] > -0.00001  else False for e in torch.eig(result)[0]]):
@@ -666,6 +669,7 @@ class DiffMatrixKernel(MatrixKernel):
             # Each element in L gets exactly one element in 'row_M' to multiply
             # Or: Combine each element in row_M with exactly one element in 'L'
             for l_elem, m_elem in zip(L, row_M):
+                print(f"right_poly:{r_elem}\n left_poly:{l_elem}\n m_elem:{m_elem}\n temp:{temp}")
                 if temp is None:
                     if m_elem is not None:
                         temp = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
@@ -673,9 +677,11 @@ class DiffMatrixKernel(MatrixKernel):
                         pass
                 else:
                     if m_elem is not None:
+                        pdb.set_trace()
                         temp += m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
                     else:
                         pass
+        print(f"final_temp:{temp}")
         return temp
 
     def diff(self, left_matrix=None, right_matrix=None):
