@@ -550,26 +550,13 @@ class MatrixKernel(Kernel):
         # check for symmetry & eigenvalues)
         for i, row in enumerate(self.matrix):
             for j, kernel in enumerate(row):
-                if kernel is None or kernel == 0:
-                    pass
-                else:
+                pdb.set_trace()
+                if not kernel in self.__dict__ and not (kernel is None or kernel == 0):
+                    #if not hasattr(self, kernel) and (kernel is None or kernel == 0):
                     setattr(self, f'kernel_{i}{j}', kernel)
 
     def set_matrix(self, matrix):
-        self.num_tasks = np.shape(matrix)[0]
-        self.matrix = matrix
-        if not np.shape(matrix)[0] == np.shape(matrix)[1]:
-            assert "Kernel matrix is not square"
-        matrix = make_symmetric(matrix)
-        self.matrix = matrix
-        # check if matrix is symmetrical (after init throw in random values and
-        # check for symmetry & eigenvalues)
-        for i, row in enumerate(self.matrix):
-            for j, kernel in enumerate(row):
-                if kernel is None or kernel == 0:
-                    pass
-                else:
-                    setattr(self, f'kernel_{i}{j}', kernel)
+        self.__init__(matrix)
 
 
     # TODO aktualisieren
