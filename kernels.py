@@ -225,7 +225,7 @@ class Diff_SE_kernel(Kernel):
             self.l_poly = l_poly
 
         def set_base_kernel(self, base_kernel):
-            self.base_kernel = base_kernel
+            self.base_kernel = id(base_kernel)
 
         def set_derivation_term_dict(self, derivation_term_dict):
             self.derivation_term_dict = derivation_term_dict
@@ -556,28 +556,35 @@ class MatrixKernel(Kernel):
 
     def __init__(self, matrix, active_dims=None):
         super().__init__(active_dims=active_dims)
+        # named_kernels is used during 'DiffMatrixKernel' which is why it's
+        # defined before checking for the matrix
+        self.named_kernels = []
         if matrix is None:
             return
+        self.set_matrix(matrix, add_kernel_parameters=True)
+
+    def set_matrix(self, matrix, add_kernel_parameters=False):
         self.num_tasks = np.shape(matrix)[0]
         if not np.shape(matrix)[0] == np.shape(matrix)[1]:
             assert "Kernel matrix is not square"
         # Set the lower triangle to be symmetric to the upper triangle
         matrix = make_symmetric(matrix)
         self.matrix = matrix
-        self.named_kernels = []
-        for i, row in enumerate(self.matrix):
-            for j, kernel in enumerate(row):
-                # Note: 'entry == kernel' only works because the kernels don't
-                # have a '__eq__' function, since then it checks the adresses
-                if not any([entry == kernel for entry in self.named_kernels]) and not (kernel is None or kernel == 0):
-                    #if not hasattr(self, kernel) and (kernel is None or kernel == 0):
-                    setattr(self, f'kernel_{i}{j}', kernel)
-                    self.named_kernels.append(getattr(self, f"kernel_{i}{j}"))
-        print(f"List of all kernels: {self.named_kernels}")
+        if add_kernel_parameters:
+            for i, row in enumerate(self.matrix):
+                for j, kernel in enumerate(row):
+                    # Note: 'entry == kernel' only works because the kernels don't
+                    # have a '__eq__' function, since then it checks the adresses
+                    if not any([entry == kernel for entry in self.named_kernels]) and not (kernel is None or kernel == 0):
+                        #if not hasattr(self, kernel) and (kernel is None or kernel == 0):
+                        setattr(self, f'kernel_{i}{j}', kernel)
+                        self.named_kernels.append(getattr(self, f"kernel_{i}{j}"))
+            print(f"List of all kernels: {self.named_kernels}")
 
-    def set_matrix(self, matrix):
-        self.__init__(matrix)
 
+
+    def add_named_kernel(self, kernel):
+        self.named_kernels.append(kernel)
 
     # TODO aktualisieren
     def _diag(self, X):
@@ -670,7 +677,6 @@ class DiffMatrixKernel(MatrixKernel):
         # of-lists
         M_transpose = list(
            map(list, itertools.zip_longest(*M, fillvalue=None)))
-        result_kernel_list = []
         # Every row in 'M' is combined with each elem of the row given in 'R'
         # Or: For each elemtn in row 'R' combine with 'row_M'
         for r_elem, row_M in zip(R, M_transpose):
@@ -679,21 +685,23 @@ class DiffMatrixKernel(MatrixKernel):
             for l_elem, m_elem in zip(L, row_M):
                 if m_elem is not None:
                     current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
-                    condition = any(e.is_equal(current_kernel) for e in result_kernel_list) if hasattr(current_kernel, 'is_equal') else  any(e is current_kernel for e in result_kernel_list)
-                    index_condition = [e.is_equal(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in result_kernel_list]
-                    index = [index_condition].index(True)
+                    condition = any(e.is_equal(current_kernel) for e in context.named_kernels) if hasattr(current_kernel, 'is_equal') else  any(e is current_kernel for e in context.named_kernels)
+                    if condition:
+                        pdb.set_trace()
+                        index_condition = [e.is_equal(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.named_kernels]
+                        index = index_condition.index(True)
                     if result_kernel is None:
                         if not condition:
                             result_kernel = current_kernel
-                            result_kernel_list.append(current_kernel)
+                            context.add_named_kernel(current_kernel)
                         else:
-                            result_kernel = result_kernel_list[index]
+                            result_kernel = context.named_kernels[index]
                     else:
                         if not condition:
                             result_kernel += current_kernel
-                            result_kernel_list.append(current_kernel)
+                            context.add_named_kernel(current_kernel)
                         else:
-                            result_kernel += result_kernel_list[index]
+                            result_kernel += context.named_kernels[index]
                 else:
                     pass
         return result_kernel
