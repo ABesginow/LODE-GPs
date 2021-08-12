@@ -214,7 +214,7 @@ class Diff_SE_kernel(Kernel):
         def is_equal(self, other):
             if not isinstance(other, self.__class__):
                 return False
-            elif other.l_poly == self.l_poly and other.r_poly == self.r_poly and other.base_kernel is self.base_kernel:
+            elif other.l_poly == self.l_poly and other.r_poly == self.r_poly and other.base_kernel == self.base_kernel:
                 return True
 
 
@@ -584,6 +584,7 @@ class MatrixKernel(Kernel):
 
 
     def add_named_kernel(self, kernel):
+        setattr(self, f"{id(kernel)}", kernel)
         self.named_kernels.append(kernel)
 
     # TODO aktualisieren
@@ -685,9 +686,9 @@ class DiffMatrixKernel(MatrixKernel):
             for l_elem, m_elem in zip(L, row_M):
                 if m_elem is not None:
                     current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
-                    condition = any(e.is_equal(current_kernel) for e in context.named_kernels) if hasattr(current_kernel, 'is_equal') else  any(e is current_kernel for e in context.named_kernels)
+                    condition = any(e.is_equal(current_kernel) for e in context.named_kernels) if hasattr(current_kernel, 'is_equal') else any(e is current_kernel for e in context.named_kernels)
+                    pdb.set_trace()
                     if condition:
-                        pdb.set_trace()
                         index_condition = [e.is_equal(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.named_kernels]
                         index = index_condition.index(True)
                     if result_kernel is None:
