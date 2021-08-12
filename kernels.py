@@ -211,6 +211,22 @@ class Diff_SE_kernel(Kernel):
             self.K_4 = None
             self.derivation_term_dict = None
 
+        def __eq__(self, other):
+            if not isinstance(other, self.__class__):
+                return False
+            elif other.l_poly == self.l_poly and other.r_poly == self.r_poly and other.base_kernel is self.base_kernel:
+                return True
+
+
+        def set_r_poly(self, r_poly):
+            self.r_poly = r_poly
+
+        def set_l_poly(self, l_poly):
+            self.l_poly = l_poly
+
+        def set_base_kernel(self, base_kernel):
+            self.base_kernel = base_kernel
+
         def set_derivation_term_dict(self, derivation_term_dict):
             self.derivation_term_dict = derivation_term_dict
 
@@ -455,6 +471,9 @@ class Diff_SE_kernel(Kernel):
 
     def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None):
         diffed_kernel = self.diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
+        diffed_kernel.set_l_poly(left_poly)
+        diffed_kernel.set_r_poly(right_poly)
+        diffed_kernel.set_base_kernel(self)
         if parent_context is None:
             parent_context = diffed_kernel
         derivation_term_dict = self.prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var, parent_context)
@@ -545,15 +564,16 @@ class MatrixKernel(Kernel):
         # Set the lower triangle to be symmetric to the upper triangle
         matrix = make_symmetric(matrix)
         self.matrix = matrix
-
-        # check if matrix is symmetrical (after init throw in random values and
-        # check for symmetry & eigenvalues)
+        self.named_kernels = []
         for i, row in enumerate(self.matrix):
             for j, kernel in enumerate(row):
-                pdb.set_trace()
-                if not kernel in self.__dict__ and not (kernel is None or kernel == 0):
+                # Note: 'entry == kernel' only works because the kernels don't
+                # have a '__eq__' function, since then it checks the adresses
+                if not any([entry == kernel for entry in self.named_kernels]) and not (kernel is None or kernel == 0):
                     #if not hasattr(self, kernel) and (kernel is None or kernel == 0):
                     setattr(self, f'kernel_{i}{j}', kernel)
+                    self.named_kernels.append(getattr(self, f"kernel_{i}{j}"))
+        print(f"List of all kernels: {self.named_kernels}")
 
     def set_matrix(self, matrix):
         self.__init__(matrix)
@@ -645,31 +665,38 @@ class DiffMatrixKernel(MatrixKernel):
 
 
     def calc_cell_diff(self, L, M, R, context=None):
-        temp = None
+        result_kernel = None
         # https://stackoverflow.com/questions/6473679/transpose-list-
         # of-lists
         M_transpose = list(
            map(list, itertools.zip_longest(*M, fillvalue=None)))
+        result_kernel_list = []
         # Every row in 'M' is combined with each elem of the row given in 'R'
         # Or: For each elemtn in row 'R' combine with 'row_M'
         for r_elem, row_M in zip(R, M_transpose):
             # Each element in L gets exactly one element in 'row_M' to multiply
             # Or: Combine each element in row_M with exactly one element in 'L'
             for l_elem, m_elem in zip(L, row_M):
-                print(f"right_poly:{r_elem}\n left_poly:{l_elem}\n m_elem:{m_elem}\n temp:{temp}")
-                if temp is None:
+                if result_kernel is None:
                     if m_elem is not None:
-                        temp = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
+                        current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
+                        if not any(e == current_kernel for e in result_kernel_list):
+                            result_kernel = current_kernel
+                        else:
+                            result_kernel = result_kernel_list[[True if e == current_kernel else False for e in result_kernel_list].index(True)]
                     else:
                         pass
                 else:
                     if m_elem is not None:
-                        pdb.set_trace()
-                        temp += m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
+                        current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
+                        if not any(e == current_kernel for e in result_kernel_list):
+                            result_kernel += current_kernel
+                        else:
+                            result_kernel += result_kernel_list[[True if e == current_kernel else False for e in result_kernel_list].index(True)]
+
                     else:
                         pass
-        print(f"final_temp:{temp}")
-        return temp
+        return result_kernel
 
     def diff(self, left_matrix=None, right_matrix=None):
         # iterate left matrix by rows and right matrix by columns and call the
