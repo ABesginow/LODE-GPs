@@ -211,7 +211,7 @@ class Diff_SE_kernel(Kernel):
             self.K_4 = None
             self.derivation_term_dict = None
 
-        def __eq__(self, other):
+        def is_equal(self, other):
             if not isinstance(other, self.__class__):
                 return False
             elif other.l_poly == self.l_poly and other.r_poly == self.r_poly and other.base_kernel is self.base_kernel:
@@ -677,25 +677,27 @@ class DiffMatrixKernel(MatrixKernel):
             # Each element in L gets exactly one element in 'row_M' to multiply
             # Or: Combine each element in row_M with exactly one element in 'L'
             for l_elem, m_elem in zip(L, row_M):
-                if result_kernel is None:
-                    if m_elem is not None:
-                        current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
-                        if not any(e == current_kernel for e in result_kernel_list):
+                if m_elem is not None:
+                    current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
+                    condition = any(e.is_equal(current_kernel) for e in result_kernel_list) if hasattr(current_kernel, 'is_equal') else  any(e is current_kernel for e in result_kernel_list)
+                    if result_kernel is None:
+                        if not condition:
                             result_kernel = current_kernel
+                            result_kernel_list.append(current_kernel)
                         else:
-                            result_kernel = result_kernel_list[[True if e == current_kernel else False for e in result_kernel_list].index(True)]
+                            index_condition = [e.is_equal(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in result_kernel_list]
+                            index = [index_condition].index(True)
+                            result_kernel = result_kernel_list[index]
                     else:
-                        pass
-                else:
-                    if m_elem is not None:
-                        current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
-                        if not any(e == current_kernel for e in result_kernel_list):
+                        if not condition:
                             result_kernel += current_kernel
+                            result_kernel_list.append(current_kernel)
                         else:
-                            result_kernel += result_kernel_list[[True if e == current_kernel else False for e in result_kernel_list].index(True)]
-
-                    else:
-                        pass
+                            index_condition = [e.is_equal(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in result_kernel_list]
+                            index = [index_condition].index(True)
+                            result_kernel += result_kernel_list[index]
+                else:
+                    pass
         return result_kernel
 
     def diff(self, left_matrix=None, right_matrix=None):
