@@ -680,21 +680,19 @@ class DiffMatrixKernel(MatrixKernel):
                 if m_elem is not None:
                     current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
                     condition = any(e.is_equal(current_kernel) for e in result_kernel_list) if hasattr(current_kernel, 'is_equal') else  any(e is current_kernel for e in result_kernel_list)
+                    index_condition = [e.is_equal(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in result_kernel_list]
+                    index = [index_condition].index(True)
                     if result_kernel is None:
                         if not condition:
                             result_kernel = current_kernel
                             result_kernel_list.append(current_kernel)
                         else:
-                            index_condition = [e.is_equal(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in result_kernel_list]
-                            index = [index_condition].index(True)
                             result_kernel = result_kernel_list[index]
                     else:
                         if not condition:
                             result_kernel += current_kernel
                             result_kernel_list.append(current_kernel)
                         else:
-                            index_condition = [e.is_equal(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in result_kernel_list]
-                            index = [index_condition].index(True)
                             result_kernel += result_kernel_list[index]
                 else:
                     pass
