@@ -198,14 +198,20 @@ class Diff_SE_kernel(Kernel):
 
         def __init__(self,  var=None, length=None, active_dims=None):
             super().__init__(active_dims=active_dims)
-            setattr(self, 'var', torch.nn.Parameter(torch.tensor(float(var))
-                                                    if not var is None else
-                                                    torch.tensor(float(1.)),
-                                                    requires_grad=True))
-            setattr(self, 'length', torch.nn.Parameter(torch.tensor(float(length))
-                                                       if not length is None else
-                                                       torch.tensor(float(1.)),
-                                                       requires_grad=True))
+            if isinstance(var, torch.nn.Parameter):
+                self.var = var
+            else:
+                setattr(self, 'var', torch.nn.Parameter(torch.tensor(float(var))
+                                                        if not var is None else
+                                                        torch.tensor(float(1.)),
+                                                        requires_grad=True))
+            if isinstance(length, torch.nn.Parameter):
+                self.length = length
+            else:
+                setattr(self, 'length', torch.nn.Parameter(torch.tensor(float(length))
+                                                           if not length is None else
+                                                           torch.tensor(float(1.)),
+                                                           requires_grad=True))
             self.K_0 = None
             self.K_1 = None
             self.K_4 = None
@@ -217,6 +223,11 @@ class Diff_SE_kernel(Kernel):
             elif other.l_poly == self.l_poly and other.r_poly == self.r_poly and other.base_kernel == self.base_kernel:
                 return True
 
+        def has_equal_basekernel(self, other):
+            if not isinstance(other, self.__class__):
+                return False
+            elif other.base_kernel == self.base_kernel:
+                return True
 
         def set_r_poly(self, r_poly):
             self.r_poly = r_poly
@@ -470,6 +481,9 @@ class Diff_SE_kernel(Kernel):
 
 
     def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None):
+        # TODO check if id(self) is in parent_context.named_kernel_list and depending on yes/no add variance/lengthscale as parameters or not
+        # If they already exist, take the adresses of the parent hyperparameters and make the diffed_SE_kernel parameters be references to these adresses
+
         diffed_kernel = self.diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
         diffed_kernel.set_l_poly(left_poly)
         diffed_kernel.set_r_poly(right_poly)
@@ -686,9 +700,9 @@ class DiffMatrixKernel(MatrixKernel):
             for l_elem, m_elem in zip(L, row_M):
                 if m_elem is not None:
                     current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
-                    condition = any(e.is_equal(current_kernel) for e in context.named_kernels) if hasattr(current_kernel, 'is_equal') else any(e is current_kernel for e in context.named_kernels)
+                    condition = any(e.has_equal_basekernel(current_kernel) for e in context.named_kernels) if hasattr(current_kernel, 'is_equal') else any(e is current_kernel for e in context.named_kernels)
                     if condition:
-                        index_condition = [e.is_equal(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.named_kernels]
+                        index_condition = [e.has_equal_basekernel(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.named_kernels]
                         index = index_condition.index(True)
                     if result_kernel is None:
                         if not condition:
