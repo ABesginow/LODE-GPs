@@ -687,7 +687,6 @@ class DiffMatrixKernel(MatrixKernel):
                 if m_elem is not None:
                     current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
                     condition = any(e.is_equal(current_kernel) for e in context.named_kernels) if hasattr(current_kernel, 'is_equal') else any(e is current_kernel for e in context.named_kernels)
-                    pdb.set_trace()
                     if condition:
                         index_condition = [e.is_equal(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.named_kernels]
                         index = index_condition.index(True)
@@ -717,4 +716,5 @@ class DiffMatrixKernel(MatrixKernel):
             output_matrix[int(i/np.shape(self.matrix)[0])][
                         int(i % np.shape(self.matrix)[0])]  = res
         kernel.set_matrix(output_matrix)
+        print(output_matrix)
         return kernel
