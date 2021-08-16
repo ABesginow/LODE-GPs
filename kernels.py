@@ -569,7 +569,6 @@ class Diff_SE_kernel(Kernel):
 class MatrixKernel(Kernel):
 
 
-
     def __init__(self, matrix, active_dims=None):
         super().__init__(active_dims=active_dims)
         # named_kernels is used during 'DiffMatrixKernel' which is why it's
@@ -702,22 +701,22 @@ class DiffMatrixKernel(MatrixKernel):
             for l_elem, m_elem in zip(L, row_M):
                 if m_elem is not None:
                     current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
-                    condition = any(e.has_equal_basekernel(current_kernel) for e in context.named_kernels) if hasattr(current_kernel, 'is_equal') else any(e is current_kernel for e in context.named_kernels)
-                    if condition:
-                        index_condition = [e.has_equal_basekernel(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.named_kernels]
-                        index = index_condition.index(True)
+                    #condition = any(e.has_equal_basekernel(current_kernel) for e in context.named_kernels) if hasattr(current_kernel, 'is_equal') else any(e is current_kernel for e in context.named_kernels)
+                    #if condition:
+                    #    index_condition = [e.has_equal_basekernel(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.named_kernels]
+                    #    index = index_condition.index(True)
                     if result_kernel is None:
-                        if not condition:
-                            result_kernel = current_kernel
-                            context.add_named_kernel(current_kernel)
-                        else:
-                            result_kernel = context.named_kernels[index]
+                        #if not condition:
+                        result_kernel = current_kernel
+                        context.add_named_kernel(current_kernel)
+                        #else:
+                        #    result_kernel = context.named_kernels[index]
                     else:
-                        if not condition:
-                            result_kernel += current_kernel
-                            context.add_named_kernel(current_kernel)
-                        else:
-                            result_kernel += context.named_kernels[index]
+                        #if not condition:
+                        result_kernel += current_kernel
+                        context.add_named_kernel(current_kernel)
+                        #else:
+                        #    result_kernel += context.named_kernels[index]
                 else:
                     pass
         return result_kernel
