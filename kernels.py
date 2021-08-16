@@ -302,11 +302,13 @@ class Diff_SE_kernel(Kernel):
 
 
         def forward(self, x1, x2, diag=False, **params):
+            var = torch.nn.functional.relu(self.var)
+            length = torch.nn.functional.relu(self.length)
             self.result_term = lambda self, l_, coefficients, i, sign, l_exponents, K_1_exponents: \
             coefficients[i]*(sign*(int(-1)**i))*(l_**l_exponents[i])*(self.K_0**K_1_exponents[i])
 
             self._square_scaled_dist(x1, x2)
-            self.K_4 = torch.mul(self.var, torch.exp(float(-0.5) * self.K_1*(float(1)/self.length**float(2))))
+            self.K_4 = torch.mul(var, torch.exp(float(-0.5) * self.K_1*(float(1)/length**float(2))))
 
             #return self.K_1, self.K_4, self.length
 
