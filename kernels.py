@@ -201,17 +201,38 @@ class Diff_SE_kernel(Kernel):
             if isinstance(var, torch.nn.Parameter):
                 self.var = var
             else:
-                setattr(self, 'var', torch.nn.Parameter(torch.tensor(float(var))
-                                                        if not var is None else
-                                                        torch.tensor(float(1.)),
-                                                        requires_grad=True))
+                if variance_constraint is None:
+                    variance_constraint = Positive()
+                self.register_parameter(
+                    name="raw_variance",
+                    parameter=torch.nn.Parameter(torch.tensor(float(var)) if not var
+                                                 is None else torch.tensor(float(1.)),
+                                                 requires_grad=True)
+                )
+                self.register_constraint("raw_variance", variance_constraint)
+
+
             if isinstance(length, torch.nn.Parameter):
                 self.length = length
             else:
-                setattr(self, 'length', torch.nn.Parameter(torch.tensor(float(length))
-                                                           if not length is None else
-                                                           torch.tensor(float(1.)),
-                                                           requires_grad=True))
+                if lengthscale_constraint is None:
+                    lengthscale_constraint = Positive()
+
+                self.register_parameter(
+                    name="raw_lengthscale",
+                    parameter=torch.nn.Parameter(torch.tensor(float(length)) if not
+                                                 length is None else
+                                                 torch.tensor(float(1.)),
+                                                 requires_grad=True)
+                )
+                if lengthscale_prior is not None:
+                    self.register_prior(
+                        "lengthscale_prior", lengthscale_prior, lambda m: m.lengthscale, lambda m, v: m._set_lengthscale(v)
+                    )
+
+                self.register_constraint("raw_lengthscale", lengthscale_constraint)
+
+
             self.K_0 = None
             self.K_1 = None
             self.K_4 = None
@@ -338,17 +359,36 @@ class Diff_SE_kernel(Kernel):
             return self.K_4*result
 
 
-    def __init__(self,  var=None, length=None, active_dims=None):
+    def __init__(self,  var=None, length=None, active_dims=None, variance_constraint=None):
         super().__init__(active_dims=active_dims)
         self.is_diffable = True
-        setattr(self, 'var', torch.nn.Parameter(torch.tensor(float(var))
-                                                if not var is None else
-                                                torch.tensor(float(1.)),
-                                                requires_grad=True))
-        setattr(self, 'length', torch.nn.Parameter(torch.tensor(float(length))
-                                                   if not length is None else
-                                                   torch.tensor(float(1.)),
-                                                   requires_grad=True))
+        if lengthscale_constraint is None:
+            lengthscale_constraint = Positive()
+
+        self.register_parameter(
+            name="raw_lengthscale",
+            parameter=torch.nn.Parameter(torch.tensor(float(length)) if not
+                                         length is None else
+                                         torch.tensor(float(1.)),
+                                         requires_grad=True)
+        )
+        if lengthscale_prior is not None:
+            self.register_prior(
+                "lengthscale_prior", lengthscale_prior, lambda m: m.lengthscale, lambda m, v: m._set_lengthscale(v)
+            )
+
+        self.register_constraint("raw_lengthscale", lengthscale_constraint)
+
+        if variance_constraint is None:
+            variance_constraint = Positive()
+        self.register_parameter(
+            name="raw_variance",
+            parameter=torch.nn.Parameter(torch.tensor(float(var)) if not var
+                                         is None else torch.tensor(float(1.)),
+                                         requires_grad=True)
+        )
+        self.register_constraint("raw_variance", variance_constraint)
+
         self.K_0 = None
         self.K_1 = None
         self.K_4 = None
@@ -483,6 +523,8 @@ class Diff_SE_kernel(Kernel):
     def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None):
         # TODO check if id(self) is in parent_context.named_kernel_list and depending on yes/no add variance/lengthscale as parameters or not
         # If they already exist, take the adresses of the parent hyperparameters and make the diffed_SE_kernel parameters be references to these adresses
+        #if not parent_context is None:
+        #    if id(self) in parent_context.named_kernel_list:
 
         diffed_kernel = self.diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
         diffed_kernel.set_l_poly(left_poly)
@@ -572,7 +614,7 @@ class MatrixKernel(Kernel):
         super().__init__(active_dims=active_dims)
         # named_kernels is used during 'DiffMatrixKernel' which is why it's
         # defined before checking for the matrix
-        self.named_kernels = []
+        self.base_kernels = []
         if matrix is None:
             return
         self.set_matrix(matrix, add_kernel_parameters=True)
@@ -589,17 +631,17 @@ class MatrixKernel(Kernel):
                 for j, kernel in enumerate(row):
                     # Note: 'entry == kernel' only works because the kernels don't
                     # have a '__eq__' function, since then it checks the adresses
-                    if not any([entry == kernel for entry in self.named_kernels]) and not (kernel is None or kernel == 0):
+                    if not any([entry == kernel for entry in self.base_kernels]) and not (kernel is None or kernel == 0):
                         #if not hasattr(self, kernel) and (kernel is None or kernel == 0):
                         setattr(self, f'kernel_{i}{j}', kernel)
-                        self.named_kernels.append(getattr(self, f"kernel_{i}{j}"))
-            print(f"List of all kernels: {self.named_kernels}")
+                        self.base_kernels.append(getattr(self, f"kernel_{i}{j}"))
+            print(f"List of all kernels: {self.base_kernels}")
 
 
 
     def add_named_kernel(self, kernel):
         setattr(self, f"{id(kernel)}", kernel)
-        self.named_kernels.append(kernel)
+        self.base_kernels.append(kernel)
 
     # TODO aktualisieren
     def _diag(self, X):
@@ -700,22 +742,22 @@ class DiffMatrixKernel(MatrixKernel):
             for l_elem, m_elem in zip(L, row_M):
                 if m_elem is not None:
                     current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
-                    condition = any(e.has_equal_basekernel(current_kernel) for e in context.named_kernels) if hasattr(current_kernel, 'is_equal') else any(e is current_kernel for e in context.named_kernels)
+                    condition = any(e.has_equal_basekernel(current_kernel) for e in context.base_kernels) if hasattr(current_kernel, 'is_equal') else any(e is current_kernel for e in context.base_kernels)
                     if condition:
-                        index_condition = [e.has_equal_basekernel(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.named_kernels]
+                        index_condition = [e.has_equal_basekernel(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.base_kernels]
                         index = index_condition.index(True)
                     if result_kernel is None:
                         if not condition:
                             result_kernel = current_kernel
                             context.add_named_kernel(current_kernel)
                         else:
-                            result_kernel = context.named_kernels[index]
+                            result_kernel = context.base_kernels[index]
                     else:
                         if not condition:
                             result_kernel += current_kernel
                             context.add_named_kernel(current_kernel)
                         else:
-                            result_kernel += context.named_kernels[index]
+                            result_kernel += context.base_kernels[index]
                 else:
                     pass
         return result_kernel
