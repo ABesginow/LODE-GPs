@@ -196,7 +196,7 @@ class Diff_SE_kernel(Kernel):
     class diffed_SE_kernel(Kernel):
         asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
 
-        def __init__(self,  var=None, length=None, active_dims=None):
+        def __init__(self,  var=None, length=None, active_dims=None, variance_constraint=None, lengthscale_constraint=None, lengthscale_prior=None):
             super().__init__(active_dims=active_dims)
             if isinstance(var, torch.nn.Parameter):
                 self.var = var
@@ -359,7 +359,7 @@ class Diff_SE_kernel(Kernel):
             return self.K_4*result
 
 
-    def __init__(self,  var=None, length=None, active_dims=None, variance_constraint=None):
+    def __init__(self,  var=None, length=None, active_dims=None, variance_constraint=None, lengthscale_constraint=None, lengthscale_prior=None):
         super().__init__(active_dims=active_dims)
         self.is_diffable = True
         if lengthscale_constraint is None:
