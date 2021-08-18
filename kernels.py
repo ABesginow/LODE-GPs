@@ -317,6 +317,7 @@ class Diff_SE_kernel(Kernel):
                 degr_o = term['d^o']
                 degr_p = term['d^p']
                 poly_coeffs = term['coeff']
+                pdb.set_trace()
                 flattened_poly_coeffs = [k for sublist in poly_coeffs for k in sublist]
                 sign = self.asym_sign_matr[int(degr_o)%int(4)][int(degr_p)%int(4)]
                 l_exponents = [np.ceil((degr_o+degr_p)/int(2)) + i for i in range(int((degr_o+degr_p)/2)+int(1))]
@@ -440,7 +441,7 @@ class Diff_SE_kernel(Kernel):
                                           [sage.rings.real_mpfr.RealLiteral,
                                            sage.rings.integer.Integer]]
                 if all(left_right_number_bool):
-                    deriv_list.append({'d^o':0, 'd^p':0, 'coeff':[float(left), float(right)]})
+                    deriv_list.append({'d^o':0, 'd^p':0, 'coeff':[[torch.tensor(float(left))], [torch.tensor(float(right))]]})
                 if not type(left) == sage.symbolic.expression.Expression and not type(right) == sage.symbolic.expression.Expression:
                     assert "Derivative expression is neither sage.symbolic.expression.Expression nor number"
                 # Catching the case of derivatives being d^n which causes derivatives.operands() to be the list [d, n] instead of [d^n]
@@ -662,11 +663,11 @@ class MatrixKernel(Kernel):
                 # rewrite everything to use CatLazyTensors and lazy Tensors
                 #result = CatLazyTensor(*[result, temp], dim=1)
                 result = torch.vstack([delazify(result), delazify(temp)])
-        print(f"Result:\n{result}")
+       # print(f"Result:\n{result}")
         result = make_symmetric(result)
-        print(f"Symmetric result:\n{result}")
+       # print(f"Symmetric result:\n{result}")
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
-        print(f"Interleaved result:\n{result}")
+       # print(f"Interleaved result:\n{result}")
         DEBG = True
         if DEBG:
             if not all([True if e[0] > -0.00001  else False for e in torch.eig(result)[0]]):
