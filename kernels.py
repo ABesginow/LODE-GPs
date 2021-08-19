@@ -317,7 +317,6 @@ class Diff_SE_kernel(Kernel):
                 degr_o = term['d^o']
                 degr_p = term['d^p']
                 poly_coeffs = term['coeff']
-                pdb.set_trace()
                 flattened_poly_coeffs = [k for sublist in poly_coeffs for k in sublist]
                 sign = self.asym_sign_matr[int(degr_o)%int(4)][int(degr_p)%int(4)]
                 l_exponents = [np.ceil((degr_o+degr_p)/int(2)) + i for i in range(int((degr_o+degr_p)/2)+int(1))]
