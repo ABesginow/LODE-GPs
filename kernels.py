@@ -325,14 +325,17 @@ class Diff_SE_kernel(Kernel):
 
 
         def forward(self, x1, x2, diag=False, **params):
+            #var = torch.nn.functional.relu(self.var)
+            var = torch.exp(self.var)
+            #length = torch.nn.functional.relu(self.length)
+            length = torch.exp(self.length)
             self.result_term = lambda self, l_, coefficients, i, sign, l_exponents, K_1_exponents: \
             coefficients[i]*(sign*(int(-1)**i))*(l_**l_exponents[i])*(self.K_0**K_1_exponents[i])
 
             self._square_scaled_dist(x1, x2)
-            self.K_4 = torch.mul(self.var, torch.exp(float(-0.5) * self.K_1*(float(1)/self.length**float(2))))
+            self.K_4 = torch.mul(var, torch.exp(float(-0.5) * self.K_1*(float(1)/length**float(2))))
 
             #return self.K_1, self.K_4, self.length
-
             result = None
             for term in self.derivation_term_dict:
                 degr_o = term['d^o']
@@ -349,7 +352,7 @@ class Diff_SE_kernel(Kernel):
                     print(f"Coefficients: {coefficients}")
                     print(f"Starting sign: {sign}")
                     print(f"l^(2*N) : {l_exponents}")
-                l_ = float(1)/self.length**(float(2))
+                l_ = float(1)/length**(float(2))
                 if result is None:
                     temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
                     #TODO: This will explode if len(poly_coeffs) > 2
@@ -480,7 +483,7 @@ class Diff_SE_kernel(Kernel):
                                           [sage.rings.real_mpfr.RealLiteral,
                                            sage.rings.integer.Integer]]
                 if all(left_right_number_bool):
-                    deriv_list.append({'d^o':0, 'd^p':0, 'coeff':[float(left), float(right)]})
+                    deriv_list.append({'d^o':0, 'd^p':0, 'coeff':[[torch.tensor(float(left))], [torch.tensor(float(right))]]})
                 if not type(left) == sage.symbolic.expression.Expression and not type(right) == sage.symbolic.expression.Expression:
                     assert "Derivative expression is neither sage.symbolic.expression.Expression nor number"
                 # Catching the case of derivatives being d^n which causes derivatives.operands() to be the list [d, n] instead of [d^n]
@@ -582,8 +585,10 @@ class Diff_SE_kernel(Kernel):
             raise ValueError("Input X must be either 1 or 2 dimensional.")
 
     def forward(self, x1, x2, diag=False, **params):
-        var = torch.nn.functional.relu(self.var)
-        length = torch.nn.functional.relu(self.length)
+        #var = torch.nn.functional.relu(self.var)
+        var = torch.exp(self.var)
+        #length = torch.nn.functional.relu(self.length)
+        length = torch.exp(self.length)
         if x2 == None:
             x2 = x1
 
@@ -609,7 +614,6 @@ class Diff_SE_kernel(Kernel):
 
 
 class MatrixKernel(Kernel):
-
 
 
     def __init__(self, matrix, active_dims=None):
@@ -705,16 +709,16 @@ class MatrixKernel(Kernel):
                 # rewrite everything to use CatLazyTensors and lazy Tensors
                 #result = CatLazyTensor(*[result, temp], dim=1)
                 result = torch.vstack([delazify(result), delazify(temp)])
-        print(f"Result:\n{result}")
+       # print(f"Result:\n{result}")
         result = make_symmetric(result)
-        print(f"Symmetric result:\n{result}")
+       # print(f"Symmetric result:\n{result}")
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
-        print(f"Interleaved result:\n{result}")
+       # print(f"Interleaved result:\n{result}")
         DEBG = True
-        if DEBG:
-            if not all([True if e[0] > -0.00001  else False for e in torch.eig(result)[0]]):
-                print(torch.eig(result)[0])
-                assert "Not all Eigenvalues positive"
+        #if DEBG:
+        #    if not all([True if e[0] > -0.00001  else False for e in torch.eig(result)[0]]):
+        #        print(torch.eig(result)[0])
+        #        assert "Not all Eigenvalues positive"
         print(result)
         return result
 
@@ -744,22 +748,22 @@ class DiffMatrixKernel(MatrixKernel):
             for l_elem, m_elem in zip(L, row_M):
                 if m_elem is not None:
                     current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
-                    condition = any(e.has_equal_basekernel(current_kernel) for e in context.base_kernels) if hasattr(current_kernel, 'is_equal') else any(e is current_kernel for e in context.base_kernels)
-                    if condition:
-                        index_condition = [e.has_equal_basekernel(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.base_kernels]
-                        index = index_condition.index(True)
+                   #condition = any(e.has_equal_basekernel(current_kernel) for e in context.named_kernels) if hasattr(current_kernel, 'is_equal') else any(e is current_kernel for e in context.named_kernels)
+                    #if condition:
+                    #    index_condition = [e.has_equal_basekernel(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.named_kernels]
+                    #    index = index_condition.index(True)
                     if result_kernel is None:
-                        if not condition:
-                            result_kernel = current_kernel
-                            context.add_named_kernel(current_kernel)
-                        else:
-                            result_kernel = context.base_kernels[index]
+                        #if not condition:
+                        result_kernel = current_kernel
+                        context.add_named_kernel(current_kernel)
+                        #else:
+                        #    result_kernel = context.named_kernels[index]
                     else:
-                        if not condition:
-                            result_kernel += current_kernel
-                            context.add_named_kernel(current_kernel)
-                        else:
-                            result_kernel += context.base_kernels[index]
+                        #if not condition:
+                        result_kernel += current_kernel
+                        context.add_named_kernel(current_kernel)
+                        #else:
+                        #    result_kernel += context.named_kernels[index]
                 else:
                     pass
         return result_kernel
