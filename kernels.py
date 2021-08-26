@@ -203,37 +203,11 @@ class Diff_SE_kernel(Kernel):
             if isinstance(var, torch.nn.Parameter):
                 self.var = var
             else:
-                if variance_constraint is None:
-                    variance_constraint = Positive()
-                self.register_parameter(
-                    name="raw_variance",
-                    parameter=torch.nn.Parameter(torch.tensor(float(var)) if not var
-                                                 is None else torch.tensor(float(1.)),
-                                                 requires_grad=True)
-                )
-                self.register_constraint("raw_variance", variance_constraint)
-
-
+                self.register_parameter(name="var", parameter=torch.nn.Parameter(torch.tensor(float(var)) if not var is None else torch.tensor(float(1.)), requires_grad=True))
             if isinstance(length, torch.nn.Parameter):
                 self.length = length
             else:
-                if lengthscale_constraint is None:
-                    lengthscale_constraint = Positive()
-
-                self.register_parameter(
-                    name="raw_lengthscale",
-                    parameter=torch.nn.Parameter(torch.tensor(float(length)) if not
-                                                 length is None else
-                                                 torch.tensor(float(1.)),
-                                                 requires_grad=True)
-                )
-                if lengthscale_prior is not None:
-                    self.register_prior(
-                        "lengthscale_prior", lengthscale_prior, lambda m: m.lengthscale, lambda m, v: m._set_lengthscale(v)
-                    )
-
-                self.register_constraint("raw_lengthscale", lengthscale_constraint)
-
+                self.register_parameter(name="length", parameter=torch.nn.Parameter(torch.tensor(float(length)) if not length is None else torch.tensor(float(1.)), requires_grad=True))
 
             self.K_0 = None
             self.K_1 = None
@@ -367,33 +341,8 @@ class Diff_SE_kernel(Kernel):
     def __init__(self,  var=None, length=None, active_dims=None, variance_constraint=None, lengthscale_constraint=None, lengthscale_prior=None):
         super().__init__(active_dims=active_dims)
         self.is_diffable = True
-        if lengthscale_constraint is None:
-            lengthscale_constraint = Positive()
-
-        self.register_parameter(
-            name="raw_lengthscale",
-            parameter=torch.nn.Parameter(torch.tensor(float(length)) if not
-                                         length is None else
-                                         torch.tensor(float(1.)),
-                                         requires_grad=True)
-        )
-        if lengthscale_prior is not None:
-            self.register_prior(
-                "lengthscale_prior", lengthscale_prior, lambda m: m.lengthscale, lambda m, v: m._set_lengthscale(v)
-            )
-
-        self.register_constraint("raw_lengthscale", lengthscale_constraint)
-
-        if variance_constraint is None:
-            variance_constraint = Positive()
-        self.register_parameter(
-            name="raw_variance",
-            parameter=torch.nn.Parameter(torch.tensor(float(var)) if not var
-                                         is None else torch.tensor(float(1.)),
-                                         requires_grad=True)
-        )
-        self.register_constraint("raw_variance", variance_constraint)
-
+        self.register_parameter(name="var", parameter=torch.nn.Parameter(torch.tensor(float(var)) if not var is None else torch.tensor(float(1.)), requires_grad=True))
+        self.register_parameter(name="length", parameter=torch.nn.Parameter(torch.tensor(float(length)) if not length is None else torch.tensor(float(1.)), requires_grad=True))
         self.K_0 = None
         self.K_1 = None
         self.K_4 = None
@@ -530,7 +479,6 @@ class Diff_SE_kernel(Kernel):
         # If they already exist, take the adresses of the parent hyperparameters and make the diffed_SE_kernel parameters be references to these adresses
         #if not parent_context is None:
         #    if id(self) in parent_context.named_kernel_list:
-
         diffed_kernel = self.diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
         diffed_kernel.set_l_poly(left_poly)
         diffed_kernel.set_r_poly(right_poly)
