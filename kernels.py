@@ -280,9 +280,9 @@ class Diff_SE_kernel(Kernel):
             """
             if Z is None:
                 Z = X
-            if not X.shape[1] == 1:
+            if len(X.shape) == 1:
                 X = self._slice_input(X)
-            if not Z.shape[1] == 1:
+            if len(Z.shape) == 1:
                 Z = self._slice_input(Z)
             if X.size(int(1)) != Z.size(int(1)):
                 raise ValueError("Inputs must have the same number of features.")
@@ -495,8 +495,10 @@ class Diff_SE_kernel(Kernel):
         """
         if Z is None:
             Z = X
-        X = self._slice_input(X)
-        Z = self._slice_input(Z)
+        if len(X.shape) == 1:
+            X = self._slice_input(X)
+        if len(Z.shape) == 1:
+            Z = self._slice_input(Z)
         if X.size(int(1)) != Z.size(int(1)):
             raise ValueError("Inputs must have the same number of features.")
 
