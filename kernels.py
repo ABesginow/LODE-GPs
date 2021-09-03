@@ -623,10 +623,6 @@ class MatrixKernel(Kernel):
     def forward(self, x1, x2, diag=False, **params):
         if x2 == None:
             x2 = x1
-        if not x1.ndim == 1:
-            x1 = x1.flatten()
-        if not x2.ndim == 1:
-            x2 = x2.flatten()
         H_z = np.shape(x2)[0]
         H_x = np.shape(x1)[0]
 
