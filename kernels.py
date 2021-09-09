@@ -665,6 +665,7 @@ class MatrixKernel(Kernel):
         #    if not all([True if e[0] > -0.00001  else False for e in torch.eig(result)[0]]):
         #        print(torch.eig(result)[0])
         #        assert "Not all Eigenvalues positive"
+        print(result)
         print(result.eig())
         return result
 
