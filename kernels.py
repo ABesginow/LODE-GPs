@@ -38,6 +38,132 @@ def make_symmetric(matrix):
 
     return matrix
 
+    # Written for the asymmetric (general) case
+def single_term_extract(d_poly, d_var=var('d'), context=None):
+        """
+        Returns the degree and the coefficient (either as tensor or as a parameter)
+        """
+        if context is None:
+            context = self
+        deriv_dict = {}
+        degree = int(d_poly.degree(d_var))
+        coeff = []
+        # It's of the form x^n or x
+        if (len(d_poly.operands()) == 2 and '^' in str(d_poly)) or ((len(d_poly.operands()) == 0) and d_poly.has(d_var)):
+            coeff.append(torch.tensor(float(1.)))
+        # It's of the form a*b*...*x^n or a*b*...*x extract the coefficients
+        elif (not len(d_poly.operands()) == 0):
+            for item in d_poly.operands():
+                # Check if power or d_var is in item and skip that
+                if '^' in str(item) or item.has(d_var):
+                    continue
+                # if coefficient is a variable, create torch parameter
+                # (if it doesn't exist already)
+                if not item.is_numeric():
+                    # If it doesn't exist, a trainable parameter with initial value 1 is created
+                    if not hasattr(context, str(item)):
+                        setattr(context,  str(item),
+                                torch.nn.Parameter(torch.tensor(float(1.)),
+                                requires_grad=True))
+                    coeff.append(getattr(context, str(item)))
+                # if coefficient is constant, float() it
+                else:
+                    coeff.append(torch.tensor(float(item)))
+        return degree, coeff
+
+
+    def prepare_asym_deriv_dict(left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), context=None):
+        if context is None:
+            context = self
+        # Will be filled as follows: [{'d^o': 4, 'd^p': 2, 'coeff':[a, b]}, {'d^o': 3, 'd^p': 3, 'coeff':[1, c]}, ...]
+        deriv_list = []
+        # simulate multiplication of expressions
+        # TODO vllt mal mit product() versuchen und vorher die Listen vorbereiten?
+
+        # Check if either left or right 'polynomial' is just an Integer
+        # since this is treated differently by sage
+        if type(left_poly) in [sage.rings.integer.Integer,
+                               sage.rings.real_mpfr.RealLiteral]:
+            left_iteration_list = [left_poly]
+        # If it has len == 0 it is a single element expression and produces
+        # empty .operands() list
+        elif len(left_poly.operands()) == 0:
+            left_iteration_list = [left_poly]
+        # IF left_poly.operands() is non empty AND every element has
+        # left_d_var -> sum of deriv expressions
+        # ELSE -> (list of) constant(s) in front of deriv variable
+        elif (not all(op.has(left_d_var) for op in left_poly.operands())
+               and len(left_poly.operands()) >= 2):
+            left_iteration_list = [left_poly]
+        else:
+            left_iteration_list = left_poly.operands()
+        for left in left_iteration_list:
+            if type(right_poly) in [sage.rings.integer.Integer,
+                                    sage.rings.real_mpfr.RealLiteral]:
+                right_iteration_list = [right_poly]
+            elif len(right_poly.operands()) == 0:
+                right_iteration_list = [right_poly]
+            else:
+                right_iteration_list = right_poly.operands()
+
+            for right in right_iteration_list:
+                left_right = [left, right]
+                # Check if the derivatives are just numbers
+                # ---
+                # Note: Difference between is_numeric() and this typecheck:
+                # Only if a number is of type Expression do they have the
+                # 'is_numeric()' function therefore I can't use that here, but
+                # I can in the single term extraction function
+                # ---
+                left_right_number_bool = [type(left) in
+                                          [sage.rings.real_mpfr.RealLiteral,
+                                           sage.rings.integer.Integer],
+                                          type(right) in
+                                          [sage.rings.real_mpfr.RealLiteral,
+                                           sage.rings.integer.Integer]]
+                if all(left_right_number_bool):
+                    deriv_list.append({'d^o':0, 'd^p':0, 'coeff':[[torch.tensor(float(left))], [torch.tensor(float(right))]]})
+                if not type(left) == sage.symbolic.expression.Expression and not type(right) == sage.symbolic.expression.Expression:
+                    assert "Derivative expression is neither sage.symbolic.expression.Expression nor number"
+                # Catching the case of derivatives being d^n which causes derivatives.operands() to be the list [d, n] instead of [d^n]
+                # The below steps will also recognize exponential expressions of the form n^x
+                # this will result in unexpected behaviour or exit with an error
+                deriv_entry = {'d^o':0, 'd^p':0, 'coeff':[]}
+                for d_poly, d_var in zip(left_right, [left_d_var, right_d_var]):
+                    # Check if either left or right is number
+                    # -> make coefficient
+                    if type(d_poly) in [sage.rings.integer.Integer,
+                                        sage.rings.real_mpfr.RealLiteral] or d_poly.is_numeric():
+                        degr = 0
+                        coeff = [torch.tensor(float(d_poly))]
+                    elif ((not all(op.has(d_var) for op in d_poly.operands())
+                           and len(d_poly.operands()) >= 2)
+                              or (d_poly.has(d_var)
+                                  and len(d_poly.operands()) == 0)):
+                        degr, coeff = single_term_extract(d_poly, d_var, context)
+                    # If the operand does not contain a "d" it is a constant
+                    # -> add the constant as variable in the context
+                    elif not d_poly.has(d_var):
+
+                        if not hasattr(context, str(d_poly)):
+                            setattr(context,  str(d_poly),
+                                    torch.nn.Parameter(torch.tensor(float(1.)),
+                                    requires_grad=True))
+                        coeff = [getattr(context, str(d_poly))]
+                        degr = 0
+                    else:
+                        # If it contains a "d" it is a derivative
+                        # "append" the new dict to the previous dict
+                        degr, coeff = single_term_extract(d_poly, d_var, context)
+                    if d_var == left_d_var:
+                        deriv_entry['d^o'] = degr
+                    else:
+                        deriv_entry['d^p'] = degr
+                    deriv_entry['coeff'].append(coeff)
+                deriv_list.append(deriv_entry)
+        return deriv_list
+
+
 
 class SageExpression(Kernel):
 
@@ -125,6 +251,7 @@ class SageExpression(Kernel):
             Z = X
         #pdb.set_trace()
         #K_0 = X-Z
+
 
 class diffed_SE_kernel(Kernel):
         asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
@@ -284,138 +411,12 @@ class Diff_SE_kernel(Kernel):
         self.K_4 = None
 
 
-    # Written for the asymmetric (general) case
-    def single_term_extract(self, d_poly, d_var=var('d'), context=None):
-        """
-        Returns the degree and the coefficient (either as tensor or as a parameter)
-        """
-        if context is None:
-            context = self
-        deriv_dict = {}
-        degree = int(d_poly.degree(d_var))
-        coeff = []
-        # It's of the form x^n or x
-        if (len(d_poly.operands()) == 2 and '^' in str(d_poly)) or ((len(d_poly.operands()) == 0) and d_poly.has(d_var)):
-            coeff.append(torch.tensor(float(1.)))
-        # It's of the form a*b*...*x^n or a*b*...*x extract the coefficients
-        elif (not len(d_poly.operands()) == 0):
-            for item in d_poly.operands():
-                # Check if power or d_var is in item and skip that
-                if '^' in str(item) or item.has(d_var):
-                    continue
-                # if coefficient is a variable, create torch parameter
-                # (if it doesn't exist already)
-                if not item.is_numeric():
-                    # If it doesn't exist, a trainable parameter with initial value 1 is created
-                    if not hasattr(context, str(item)):
-                        setattr(context,  str(item),
-                                torch.nn.Parameter(torch.tensor(float(1.)),
-                                requires_grad=True))
-                    coeff.append(getattr(context, str(item)))
-                # if coefficient is constant, float() it
-                else:
-                    coeff.append(torch.tensor(float(item)))
-        return degree, coeff
-
-
-    def prepare_asym_deriv_dict(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), context=None):
-        if context is None:
-            context = self
-        # Will be filled as follows: [{'d^o': 4, 'd^p': 2, 'coeff':[a, b]}, {'d^o': 3, 'd^p': 3, 'coeff':[1, c]}, ...]
-        deriv_list = []
-        # simulate multiplication of expressions
-        # TODO vllt mal mit product() versuchen und vorher die Listen vorbereiten?
-
-        # Check if either left or right 'polynomial' is just an Integer
-        # since this is treated differently by sage
-        if type(left_poly) in [sage.rings.integer.Integer,
-                               sage.rings.real_mpfr.RealLiteral]:
-            left_iteration_list = [left_poly]
-        # If it has len == 0 it is a single element expression and produces
-        # empty .operands() list
-        elif len(left_poly.operands()) == 0:
-            left_iteration_list = [left_poly]
-        # IF left_poly.operands() is non empty AND every element has
-        # left_d_var -> sum of deriv expressions
-        # ELSE -> (list of) constant(s) in front of deriv variable
-        elif (not all(op.has(left_d_var) for op in left_poly.operands())
-               and len(left_poly.operands()) >= 2):
-            left_iteration_list = [left_poly]
-        else:
-            left_iteration_list = left_poly.operands()
-        for left in left_iteration_list:
-            if type(right_poly) in [sage.rings.integer.Integer,
-                                    sage.rings.real_mpfr.RealLiteral]:
-                right_iteration_list = [right_poly]
-            elif len(right_poly.operands()) == 0:
-                right_iteration_list = [right_poly]
-            else:
-                right_iteration_list = right_poly.operands()
-
-            for right in right_iteration_list:
-                left_right = [left, right]
-                # Check if the derivatives are just numbers
-                # ---
-                # Note: Difference between is_numeric() and this typecheck:
-                # Only if a number is of type Expression do they have the
-                # 'is_numeric()' function therefore I can't use that here, but
-                # I can in the single term extraction function
-                # ---
-                left_right_number_bool = [type(left) in
-                                          [sage.rings.real_mpfr.RealLiteral,
-                                           sage.rings.integer.Integer],
-                                          type(right) in
-                                          [sage.rings.real_mpfr.RealLiteral,
-                                           sage.rings.integer.Integer]]
-                if all(left_right_number_bool):
-                    deriv_list.append({'d^o':0, 'd^p':0, 'coeff':[[torch.tensor(float(left))], [torch.tensor(float(right))]]})
-                if not type(left) == sage.symbolic.expression.Expression and not type(right) == sage.symbolic.expression.Expression:
-                    assert "Derivative expression is neither sage.symbolic.expression.Expression nor number"
-                # Catching the case of derivatives being d^n which causes derivatives.operands() to be the list [d, n] instead of [d^n]
-                # The below steps will also recognize exponential expressions of the form n^x
-                # this will result in unexpected behaviour or exit with an error
-                deriv_entry = {'d^o':0, 'd^p':0, 'coeff':[]}
-                for d_poly, d_var in zip(left_right, [left_d_var, right_d_var]):
-                    # Check if either left or right is number
-                    # -> make coefficient
-                    if type(d_poly) in [sage.rings.integer.Integer,
-                                        sage.rings.real_mpfr.RealLiteral] or d_poly.is_numeric():
-                        degr = 0
-                        coeff = [torch.tensor(float(d_poly))]
-                    elif ((not all(op.has(d_var) for op in d_poly.operands())
-                           and len(d_poly.operands()) >= 2)
-                              or (d_poly.has(d_var)
-                                  and len(d_poly.operands()) == 0)):
-                        degr, coeff = self.single_term_extract(d_poly, d_var, context)
-                    # If the operand does not contain a "d" it is a constant
-                    # -> add the constant as variable in the context
-                    elif not d_poly.has(d_var):
-
-                        if not hasattr(context, str(d_poly)):
-                            setattr(context,  str(d_poly),
-                                    torch.nn.Parameter(torch.tensor(float(1.)),
-                                    requires_grad=True))
-                        coeff = [getattr(context, str(d_poly))]
-                        degr = 0
-                    else:
-                        # If it contains a "d" it is a derivative
-                        # "append" the new dict to the previous dict
-                        degr, coeff = self.single_term_extract(d_poly, d_var, context)
-                    if d_var == left_d_var:
-                        deriv_entry['d^o'] = degr
-                    else:
-                        deriv_entry['d^p'] = degr
-                    deriv_entry['coeff'].append(coeff)
-                deriv_list.append(deriv_entry)
-        return deriv_list
-
-
     def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None):
         # TODO check if id(self) is in parent_context.named_kernel_list and depending on yes/no add variance/lengthscale as parameters or not
         # If they already exist, take the adresses of the parent hyperparameters and make the diffed_SE_kernel parameters be references to these adresses
         #if not parent_context is None:
         #    if id(self) in parent_context.named_kernel_list:
-        diffed_kernel = self.diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
+        diffed_kernel = diffed_SE_kernel(var=self.var, length=self.length, active_dims=self.active_dims)
         diffed_kernel.set_l_poly(left_poly)
         diffed_kernel.set_r_poly(right_poly)
         diffed_kernel.set_base_kernel(self)
