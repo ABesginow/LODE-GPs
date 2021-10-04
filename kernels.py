@@ -126,11 +126,7 @@ class SageExpression(Kernel):
         #pdb.set_trace()
         #K_0 = X-Z
 
-
-class Diff_SE_kernel(Kernel):
-
-    asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
-    class diffed_SE_kernel(Kernel):
+class diffed_SE_kernel(Kernel):
         asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
 
         def __init__(self,  var=None, length=None, active_dims=None, variance_constraint=None, lengthscale_constraint=None, lengthscale_prior=None):
@@ -272,6 +268,11 @@ class Diff_SE_kernel(Kernel):
                     result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*np.prod(flattened_poly_coeffs)
             return self.K_4*result
 
+
+
+class Diff_SE_kernel(Kernel):
+
+    asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
 
     def __init__(self,  var=None, length=None, active_dims=None, variance_constraint=None, lengthscale_constraint=None, lengthscale_prior=None):
         super().__init__(active_dims=active_dims)
