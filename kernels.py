@@ -77,10 +77,12 @@ def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'
     deriv_list = []
     # simulate multiplication of expressions
     # TODO vllt mal mit product() versuchen und vorher die Listen vorbereiten?
-
+    # Check if left is an int/float
+    if type(left_poly) in [int, float]:
+        left_iteration_list = [left_poly]
     # Check if either left or right 'polynomial' is just an Integer
     # since this is treated differently by sage
-    if type(left_poly) in [sage.rings.integer.Integer,
+    elif type(left_poly) in [sage.rings.integer.Integer,
                            sage.rings.real_mpfr.RealLiteral]:
         left_iteration_list = [left_poly]
     # If it has len == 0 it is a single element expression and produces
@@ -96,7 +98,9 @@ def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'
     else:
         left_iteration_list = left_poly.operands()
     for left in left_iteration_list:
-        if type(right_poly) in [sage.rings.integer.Integer,
+        if type(right_poly) in [int, float]:
+            right_iteration_list = [right_poly]
+        elif type(right_poly) in [sage.rings.integer.Integer,
                                 sage.rings.real_mpfr.RealLiteral]:
             right_iteration_list = [right_poly]
         elif len(right_poly.operands()) == 0:
