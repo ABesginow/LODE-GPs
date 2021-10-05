@@ -39,7 +39,7 @@ def make_symmetric(matrix):
     return matrix
 
     # Written for the asymmetric (general) case
-def single_term_extract(d_poly, context,d_var=var('d')):
+def single_term_extract(d_poly, context, d_var=var('d')):
     """
     Returns the degree and the coefficient (either as tensor or as a parameter)
     """
