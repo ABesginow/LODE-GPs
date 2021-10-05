@@ -46,17 +46,17 @@ def single_term_extract(d_poly, context, d_var=var('d')):
     assert context is not None, "Context must be specified"
     # Check the polynomial is just a number
     if not type(d_poly) in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.symbolic.expression.Expression]:
-        return 0, float(d_poly)
+        return 0, [torch.tensor(float(d_poly))]
     degree = int(d_poly.degree(d_var))
     coeff = []
     # It's of the form x^n or x
-    if (len(d_poly.operands()) == 2 and '^' in str(d_poly)) or ((len(d_poly.operands()) == 0) and d_poly.has(d_var)):
+    if (len(d_poly.operands()) == 2 and '**' in str(d_poly)) or ((len(d_poly.operands()) == 0) and d_poly.has(d_var)):
         coeff.append(torch.tensor(float(1.)))
     # It's of the form a*b*...*x^n or a*b*...*x -> extract the coefficients
     elif (not len(d_poly.operands()) == 0):
         for item in d_poly.operands():
             # Check if power or d_var is in item and skip that
-            if '^' in str(item) or item.has(d_var):
+            if '**' in str(item) or item.has(d_var):
                 continue
             # if coefficient is a variable, create torch parameter
             # (if it doesn't exist already)
@@ -71,7 +71,7 @@ def single_term_extract(d_poly, context, d_var=var('d')):
             else:
                 coeff.append(torch.tensor(float(item)))
     # Check if d_poly is just a variable/number
-    elif len(d_poly.operands()) == 0) and not d_poly.has(d_var):
+    elif len(d_poly.operands()) == 0 and not d_poly.has(d_var):
         if d_poly.is_numeric():
             coeff.append(torch.tensor(float(d_poly)))
         else:
@@ -79,7 +79,7 @@ def single_term_extract(d_poly, context, d_var=var('d')):
                 setattr(context,  str(d_poly),
                         torch.nn.Parameter(torch.tensor(float(1.)),
                         requires_grad=True))
-                coeff.append(getattr(context, str(d_poly)))
+            coeff.append(getattr(context, str(d_poly)))
     return degree, coeff
 
 
@@ -118,24 +118,25 @@ def extract_operand_list(polynomial, d_var):
     elif type(polynomial) is sage.symbolic.expression.Expression and len(polynomial.operands()) == 0 and polynomial.has(d_var):
         list_of_operands = [polynomial]
 
+    # IF polynomial.operands() is non empty AND every element has
+    # left_d_var -> sum of deriv expressions
+    elif '+' in str(polynomial) and type(polynomial) is sage.symbolic.expression.Expression:
+    #elif type(polynomial) is sage.symbolic.expression.Expression and (all(op.has(d_var) for op in polynomial.operands()) and len(polynomial.operands()) >= 2):
+        list_of_operands = polynomial.operands()
+
+
+
     # Check if there is a coefficient times/to the power of x
     # Note: Both 4*x and x^4 will produce the same output via
     # polynomial.operands() i.e. [4, x]
     # -> Pass as is and handle this on a higher level
-    elif len(polynomial.operands()) == 2 and '^' in str(polynomial) and polynomial.has(d_var):
+    elif len(polynomial.operands()) == 2 and polynomial.has(d_var):
         list_of_operands = [polynomial]
-
-
-    # IF polynomial.operands() is non empty AND every element has
-    # left_d_var -> sum of deriv expressions
-    elif type(polynomial) is sage.symbolic.expression.Expression and (all(op.has(d_var) for op in polynomial.operands())
-           and len(polynomial.operands()) >= 2):
-        list_of_operands = polynomial.operands()
 
     # Handles things of the form a*x^n which are not sums of deriv expressions
     # which is handled above
     # -> Pass as is and handle this on a higher level
-    elif any(('^' in str(op) and op.has(d_var)) for op in polynomial.operands()) and len(polynomial.operands() >= 2):
+    elif any(('^' in str(op) and op.has(d_var)) for op in polynomial.operands()) and len(polynomial.operands()) >= 2:
         list_of_operands = [polynomial]
 
     # Check if there are only coefficients of sage number types
@@ -157,7 +158,7 @@ def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'
     left_iteration_list = extract_operand_list(left_poly, left_d_var)
     right_iteration_list = extract_operand_list(right_poly, right_d_var)
 
-    left_right = itertools.Product(left_iteration_list, right_iteration_list)
+    left_right = itertools.product(left_iteration_list, right_iteration_list)
     for left, right in left_right:
         """
         Cases to take care of:
@@ -167,10 +168,10 @@ def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'
         - Either is x^n
         - Either is of a complex form (a*x^n and worse)
         """
-
         left_exponent, left_coeffs = single_term_extract(left, context, left_d_var)
         right_exponent, right_coeffs = single_term_extract(right, context, right_d_var)
-        all_coeffs = left_coeffs.extend(right_coeffs)
+        all_coeffs = left_coeffs.copy()
+        all_coeffs.extend(right_coeffs)
         deriv_list.append([all_coeffs, left_exponent, right_exponent])
     return deriv_list
 
