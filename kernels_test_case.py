@@ -1,7 +1,7 @@
-from kernels import *
+from sage.all import *
 
+from kernels import *
 import unittest
-import sage
 
 class TestKernel(unittest.TestCase):
 

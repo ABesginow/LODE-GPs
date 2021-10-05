@@ -39,12 +39,11 @@ def make_symmetric(matrix):
     return matrix
 
     # Written for the asymmetric (general) case
-def single_term_extract(d_poly, d_var=var('d'), context=None):
+def single_term_extract(d_poly, context,d_var=var('d')):
     """
     Returns the degree and the coefficient (either as tensor or as a parameter)
     """
-    if context is None:
-        context = self
+    assert context is not None, "Context must be specified"
     deriv_dict = {}
     degree = int(d_poly.degree(d_var))
     coeff = []
@@ -72,9 +71,8 @@ def single_term_extract(d_poly, d_var=var('d'), context=None):
     return degree, coeff
 
 
-def prepare_asym_deriv_dict(left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), context=None):
-    if context is None:
-        context = self
+def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'), right_d_var=var('dx2')):
+    assert context is not None, "Context must be specified"
     # Will be filled as follows: [{'d^o': 4, 'd^p': 2, 'coeff':[a, b]}, {'d^o': 3, 'd^p': 3, 'coeff':[1, c]}, ...]
     deriv_list = []
     # simulate multiplication of expressions
@@ -422,7 +420,7 @@ class Diff_SE_kernel(Kernel):
         diffed_kernel.set_base_kernel(self)
         if parent_context is None:
             parent_context = diffed_kernel
-        derivation_term_dict = self.prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var, parent_context)
+        derivation_term_dict = prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var, parent_context)
         diffed_kernel.set_derivation_term_dict(derivation_term_dict)
         return diffed_kernel
 
