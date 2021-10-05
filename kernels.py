@@ -73,7 +73,8 @@ def single_term_extract(d_poly, context, d_var=var('d')):
 
 def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'), right_d_var=var('dx2')):
     assert context is not None, "Context must be specified"
-    # Will be filled as follows: [{'d^o': 4, 'd^p': 2, 'coeff':[a, b]}, {'d^o': 3, 'd^p': 3, 'coeff':[1, c]}, ...]
+    # Will be filled as follows: [[[var_left, var_right], d^left, d^right], ...]
+    # [[[0, a], 1, 3], [[b, 17], 0, 0], [[c, d], 17, 42], ...]
     deriv_list = []
     # simulate multiplication of expressions
     # TODO vllt mal mit product() versuchen und vorher die Listen vorbereiten?

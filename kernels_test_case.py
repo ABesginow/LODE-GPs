@@ -146,6 +146,16 @@ class TestKernel(unittest.TestCase):
         self.assertIsInstance(result[1][0][0], torch.nn.Parameter, "Hyperparameter 1 wasn't initialized properly")
         self.assertEqual(result[1][1], 0, "Exponent 1 not correctly calculated")
         self.assertEqual(result[1][2], 1, "Exponent 2 not correctly calculated")
+        #
+        left_poly = a*b*x1^3
+        right_poly = 42
+        result = prepare_asym_deriv_dict(left_poly, right_poly, context)
+        # Result should be [[[a, b, 42], 3, 0]]
+        self.assertIsInstance(result[0][0][0], torch.nn.Parameter, "Hyperparameter 1 wasn't initialized properly")
+        self.assertIsInstance(result[0][0][1], torch.nn.Parameter, "Hyperparameter 2 wasn't initialized properly")
+        self.assertEqual(result[0][0][2], 42, "Coefficient wasn't initialized properly")
+        self.assertEqual(result[0][1], 3, "Exponent 1 not correctly calculated")
+        self.assertEqual(result[0][2], 0, "Exponent 2 not correctly calculated")
 
 
 
