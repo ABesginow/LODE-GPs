@@ -168,14 +168,15 @@ class TestKernel(unittest.TestCase):
         self.assertEqual(result[0][0][2], 1, "Second coefficient is wrong")
         self.assertEqual(result[0][1], 3, "Exponent 1 not correctly calculated")
         self.assertEqual(result[0][2], 0, "Exponent 2 not correctly calculated")
+        # Check for failure
+        left_poly = e**3*dx1
+        right_poly = 1
+        self.assertRaises(Exception, prepare_asym_deriv_dict, left_poly, right_poly, context)
         #
         left_poly = (a+1)*dx1**3
         right_poly = (b+a)*dx2
-        result = prepare_asym_deriv_dict(left_poly, right_poly, context)
-        # Result should be [[[(a+1), (b+a)], 3, 1]]
+        self.assertRaises(Exception, prepare_asym_deriv_dict, left_poly, right_poly, context)
 
-        self.assertEqual(result[0][1], 3, "Exponent 1 not correctly calculated")
-        self.assertEqual(result[0][2], 1, "Exponent 2 not correctly calculated")
 
 
 

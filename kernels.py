@@ -38,6 +38,8 @@ def make_symmetric(matrix):
 
     return matrix
 
+
+
     # Written for the asymmetric (general) case
 def single_term_extract(d_poly, context, d_var=var('d')):
     """
@@ -99,6 +101,16 @@ def extract_operand_list(polynomial, d_var):
        (e.g. left= a*x1^3)
      - [x] Other cases should all cause errors
     """
+    """
+    Known cases that pass but produce wrong results:
+    left =  (a+1)*dx1^3
+    right = (a+b)dx2
+    #TODO make them produce errors
+    """
+
+    # Check for things like (a+b)*x^n and e^3*x^n
+    if type(polynomial) in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.symbolic.expression.Expression] and any(not op.has(d_var) and ('+' in str(op) or '^' in str(op)) for op in polynomial.operands()):
+        raise Exception(f"Format unknown, polynomial required for differentiation. \n{str(polynomial)}")
 
     # Check if polynomial is an int/float -> List of operands is just the
     # number
@@ -160,14 +172,6 @@ def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'
 
     left_right = itertools.product(left_iteration_list, right_iteration_list)
     for left, right in left_right:
-        """
-        Cases to take care of:
-        - Both are numbers
-        - Both are variables
-        - Both are x^n
-        - Either is x^n
-        - Either is of a complex form (a*x^n and worse)
-        """
         left_exponent, left_coeffs = single_term_extract(left, context, left_d_var)
         right_exponent, right_coeffs = single_term_extract(right, context, right_d_var)
         all_coeffs = left_coeffs.copy()
