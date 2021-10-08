@@ -114,6 +114,8 @@ def extract_operand_list(polynomial, d_var):
     if type(polynomial) in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.symbolic.expression.Expression] and any(not op.has(d_var) and ('+' in str(op) or '^' in str(op)) for op in polynomial.operands()):
         raise Exception(f"Format unknown, polynomial required for differentiation. \n{str(polynomial)}")
 
+    import pdb
+    pdb.set_trace()
     # Check if polynomial is an int/float -> List of operands is just the
     # number
     if type(polynomial) in [int, float]:
@@ -438,11 +440,9 @@ class Diff_SE_kernel(Kernel):
         diffed_kernel.set_base_kernel(self)
         if parent_context is None:
             parent_context = diffed_kernel
-        derivation_term_list = prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var, parent_context)
+        derivation_term_list = prepare_asym_deriv_dict(left_poly, right_poly, parent_context, left_d_var, right_d_var)
         derived_form_list = []
-        self.result_term = lambda self, l_, coefficients, i, sign, l_exponents: \
-        coefficients[i]*(sign*(int(-1)**i))*(l_**l_exponents[i])
-        for term in self.derivation_term_list:
+        for term in derivation_term_list:
             # term will have the form [[coeff1, coeff2, ...], exponent of dx1, exponent of dx2]
             coeff = None
             K_0_exponent = None
