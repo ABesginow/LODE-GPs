@@ -1,4 +1,5 @@
 import itertools
+from itertools import zip_longest
 import torch
 from torch.distributions import constraints
 import torch
@@ -37,6 +38,7 @@ def make_symmetric(matrix):
         matrix[i % row_len][int(i/row_len)] = matrix[int(i/row_len)][i % row_len]
 
     return matrix
+
 
 
 
@@ -312,26 +314,8 @@ class diffed_SE_kernel(Kernel):
         def set_derivation_term_dict(self, derivation_term_dict):
             self.derivation_term_dict = derivation_term_dict
 
-        def coeffs(self, given_n):
-            # See http://oeis.org/A096713
-            real_n = int(given_n/2)
-            m, k = var('m, k')
-            # even
-            # T(2*m, k) = (-1)^(m+k)*(2*m)!*2^(k-m)/((m-k)!*(2*k)!), k = 0..m.
-            if given_n % 2 == 0:
-                # This notation is only valid in iPython
-                #T(m,k) = factorial(2*m)*2^(k-m)/(factorial(m-k)*factorial(2*k))
-                # As an actual Python file I need to use:
-                T = lambda m, k : factorial(2*m)*2**(k-m)/(factorial(m-k)*factorial(2*k))
-            # odd
-            # T(2*m+1, k) = (-1)^(m+k)*(2*m+1)!*2^(k-m)/((m-k)!*(2*k+1)!), k = 0..m. (End)
-            else:
-                # See above
-                #T(m,k) = factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
-                T = lambda m, k: factorial(1*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
-
-            return [int(T(real_n, k)) for k in range(real_n+1)]
-
+        def set_derivation_coefficients_list(self, derivation_coefficients_list):
+            self.derivation_coefficients_list = derivation_coefficients_list
 
         def _slice_input(self, X):
             r"""
@@ -380,35 +364,29 @@ class diffed_SE_kernel(Kernel):
             self.result_term = lambda self, l_, coefficients, i, sign, l_exponents, K_1_exponents: \
             coefficients[i]*(sign*(int(-1)**i))*(l_**l_exponents[i])*(self.K_0**K_1_exponents[i])
 
+            l_ = float(1)/length**(float(2))
+
             self._square_scaled_dist(x1, x2)
             self.K_4 = torch.mul(var, torch.exp(float(-0.5) * self.K_1*(float(1)/length**float(2))))
 
             #return self.K_1, self.K_4, self.length
             result = None
-            for term in self.derivation_term_dict:
-                degr_o = term['d^o']
-                degr_p = term['d^p']
-                poly_coeffs = term['coeff']
-                flattened_poly_coeffs = [k for sublist in poly_coeffs for k in sublist]
-                sign = self.asym_sign_matr[int(degr_o)%int(4)][int(degr_p)%int(4)]
-                l_exponents = [np.ceil((degr_o+degr_p)/int(2)) + i for i in range(int((degr_o+degr_p)/2)+int(1))]
-#                artificial_degree = np.ceil((degr_o+degr_p)/int(2))
-                K_1_exponents = [int(i*2) if int(degr_o+degr_p)%2 == 0 else int(i*int(2)+int(1)) for i in range(int((degr_o+degr_p)/2)+int(1))]
-                coefficients = self.coeffs(int(degr_o+degr_p))
-                if DEBUG:
-                    print(f"(x1-x2)^i : {K_1_exponents}")
-                    print(f"Coefficients: {coefficients}")
-                    print(f"Starting sign: {sign}")
-                    print(f"l^(2*N) : {l_exponents}")
-                l_ = float(1)/length**(float(2))
-                if result is None:
-                    temp = [self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))]
-                    #TODO: This will explode if len(poly_coeffs) > 2
-                    result = sum(temp)*np.prod(flattened_poly_coeffs)
-                else:
-                    #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
-                    #TODO: This as well
-                    result += sum([self.result_term(self, l_, coefficients, i, sign, l_exponents, K_1_exponents=K_1_exponents) for i in range(int((degr_o+degr_p)/2)+int(1))])*np.prod(flattened_poly_coeffs)
+            # [[[coeff, l_exp, exp], [coeff, l_exp, exp], ...], [[coeff, l_exp, exp], ...], ...]
+            for term in self.derivation_coefficients_list:
+                for summand in term:
+                    K_0_exp = term[3]
+                    l_exp = term[2]
+                    coeff = term[1]
+                    poly_coeffs = term[0]
+
+                    if result is None:
+                        temp = coeff*l_**l_exp*self.K_0**K_0_exp*np.prod(poly_coeffs)
+                        result = sum(temp)
+                    else:
+                        #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
+                        #TODO: This as well
+                        temp = coeff*l_**l_exp*self.K_0**K_0_exp*np.prod(poly_coeffs)
+                        result += sum(temp)
             return self.K_4*result
 
 
@@ -426,6 +404,28 @@ class Diff_SE_kernel(Kernel):
         self.K_1 = None
         self.K_4 = None
 
+    def coeffs(self, given_n):
+        # See http://oeis.org/A096713
+        real_n = int(given_n/2)
+        m, k = var('m, k')
+        # even
+        # T(2*m, k) = (-1)^(m+k)*(2*m)!*2^(k-m)/((m-k)!*(2*k)!), k = 0..m.
+        if given_n % 2 == 0:
+            # This notation is only valid in iPython
+            #T(m,k) = factorial(2*m)*2^(k-m)/(factorial(m-k)*factorial(2*k))
+            # As an actual Python file I need to use:
+            T = lambda m, k : factorial(2*m)*2**(k-m)/(factorial(m-k)*factorial(2*k))
+        # odd
+        # T(2*m+1, k) = (-1)^(m+k)*(2*m+1)!*2^(k-m)/((m-k)!*(2*k+1)!), k = 0..m. (End)
+        else:
+            # See above
+            #T(m,k) = factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
+            T = lambda m, k: factorial(1*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
+
+        return [int(T(real_n, k)) for k in range(real_n+1)]
+
+
+
 
     def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None):
         # TODO check if id(self) is in parent_context.named_kernel_list and depending on yes/no add variance/lengthscale as parameters or not
@@ -438,8 +438,26 @@ class Diff_SE_kernel(Kernel):
         diffed_kernel.set_base_kernel(self)
         if parent_context is None:
             parent_context = diffed_kernel
-        derivation_term_dict = prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var, parent_context)
-        diffed_kernel.set_derivation_term_dict(derivation_term_dict)
+        derivation_term_list = prepare_asym_deriv_dict(left_poly, right_poly, left_d_var, right_d_var, parent_context)
+        derived_form_list = []
+        self.result_term = lambda self, l_, coefficients, i, sign, l_exponents: \
+        coefficients[i]*(sign*(int(-1)**i))*(l_**l_exponents[i])
+        for term in self.derivation_term_list:
+            # term will have the form [[coeff1, coeff2, ...], exponent of dx1, exponent of dx2]
+            coeff = None
+            K_0_exponent = None
+            degr_x1 = term[1]
+            degr_x2 = term[2]
+            poly_coeffs = term[0]
+            multiply_coeffs
+            sign = self.asym_sign_matr[int(degr_x1)%int(4)][int(degr_x2)%int(4)]
+            K_0_exponents = [int(i*2) if int(degr_x1+degr_x2)%2 == 0 else int(i*int(2)+int(1)) for i in range(int((degr_x1+degr_x2)/2)+int(1))]
+            coefficients = self.coeffs(int(degr_x1+degr_x2))
+            coefficients = [coefficients[i]*(-1)**i for i in range(int((degr_o+degr_p)/2)+int(1))]
+            l_exponents = [np.ceil((degr_o+degr_p)/int(2)) + i for i in range(int((degr_o+degr_p)/2)+int(1))]
+            derived_form_list.append([[poly_coeffs, coeff, l_exp, exp] for exp, coeff, l_exp in zip_longest(K_0_exponents, coefficients, l_exponents, fillvalue=0)])
+        diffed_kernel.set_derivation_coefficients_list(derived_form_list)
+        diffed_kernel.set_derivation_term_dict(derivation_term_list)
         return diffed_kernel
 
     def _square_scaled_dist(self, X, Z=None):
