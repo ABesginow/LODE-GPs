@@ -114,8 +114,6 @@ def extract_operand_list(polynomial, d_var):
     if type(polynomial) in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.symbolic.expression.Expression] and any(not op.has(d_var) and ('+' in str(op) or '^' in str(op)) for op in polynomial.operands()):
         raise Exception(f"Format unknown, polynomial required for differentiation. \n{str(polynomial)}")
 
-    import pdb
-    pdb.set_trace()
     # Check if polynomial is an int/float -> List of operands is just the
     # number
     if type(polynomial) in [int, float]:
@@ -452,8 +450,8 @@ class Diff_SE_kernel(Kernel):
             sign = self.asym_sign_matr[int(degr_x1)%int(4)][int(degr_x2)%int(4)]
             K_0_exponents = [int(i*2) if int(degr_x1+degr_x2)%2 == 0 else int(i*int(2)+int(1)) for i in range(int((degr_x1+degr_x2)/2)+int(1))]
             coefficients = self.coeffs(int(degr_x1+degr_x2))
-            coefficients = [coefficients[i]*(-1)**i for i in range(int((degr_o+degr_p)/2)+int(1))]
-            l_exponents = [np.ceil((degr_o+degr_p)/int(2)) + i for i in range(int((degr_o+degr_p)/2)+int(1))]
+            coefficients = [coefficients[i]*(-1)**i for i in range(int((degr_x1+degr_x2)/2)+int(1))]
+            l_exponents = [np.ceil((degr_x1+degr_x2)/int(2)) + i for i in range(int((degr_x1+degr_x2)/2)+int(1))]
             derived_form_list.append([[poly_coeffs, coeff, l_exp, exp] for exp, coeff, l_exp in zip_longest(K_0_exponents, coefficients, l_exponents, fillvalue=0)])
         diffed_kernel.set_derivation_coefficients_list(derived_form_list)
         diffed_kernel.set_derivation_term_dict(derivation_term_list)
