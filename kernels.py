@@ -373,11 +373,13 @@ class diffed_SE_kernel(Kernel):
             result = None
             # [[[coeff, l_exp, exp], [coeff, l_exp, exp], ...], [[coeff, l_exp, exp], ...], ...]
             for term in self.derivation_coefficients_list:
+                import pdb
+                pdb.set_trace()
                 for summand in term:
-                    K_0_exp = term[3]
-                    l_exp = term[2]
-                    coeff = term[1]
-                    poly_coeffs = term[0]
+                    K_0_exp = summand[3]
+                    l_exp = summand[2]
+                    coeff = summand[1]
+                    poly_coeffs = summand[0]
 
                     if result is None:
                         temp = coeff*l_**l_exp*self.K_0**K_0_exp*np.prod(poly_coeffs)
@@ -442,8 +444,6 @@ class Diff_SE_kernel(Kernel):
         derived_form_list = []
         for term in derivation_term_list:
             # term will have the form [[coeff1, coeff2, ...], exponent of dx1, exponent of dx2]
-            coeff = None
-            K_0_exponent = None
             degr_x1 = term[1]
             degr_x2 = term[2]
             poly_coeffs = term[0]
