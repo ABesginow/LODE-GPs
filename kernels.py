@@ -397,7 +397,10 @@ class diffed_SE_kernel(Kernel):
 
 class Diff_SE_kernel(Kernel):
 
-    asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
+    asym_sign_matr = [[int(1), int(1), int(-1), int(-1)],
+                      [int(-1), int(1), int(1), int(-1)],
+                      [int(-1), int(-1), int(1), int(1)],
+                      [int(1), int(-1), int(-1), int(1)]]
 
     def __init__(self,  var=None, length=None, active_dims=None, variance_constraint=None, lengthscale_constraint=None, lengthscale_prior=None):
         super().__init__(active_dims=active_dims)
@@ -418,13 +421,13 @@ class Diff_SE_kernel(Kernel):
             # This notation is only valid in iPython
             #T(m,k) = factorial(2*m)*2^(k-m)/(factorial(m-k)*factorial(2*k))
             # As an actual Python file I need to use:
-            T = lambda m, k : factorial(2*m)*2**(k-m)/(factorial(m-k)*factorial(2*k))
+            T = lambda m, k : (-1)**(m+k)*factorial(2*m)*2**(k-m)/(factorial(m-k)*factorial(2*k))
         # odd
         # T(2*m+1, k) = (-1)^(m+k)*(2*m+1)!*2^(k-m)/((m-k)!*(2*k+1)!), k = 0..m. (End)
         else:
             # See above
             #T(m,k) = factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
-            T = lambda m, k: factorial(2*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
+            T = lambda m, k: (-1)**(m+k)*factorial(2*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
 
         return [int(T(real_n, k)) for k in range(real_n+1)]
 
@@ -450,7 +453,8 @@ class Diff_SE_kernel(Kernel):
             sign = self.asym_sign_matr[int(degr_x1)%int(4)][int(degr_x2)%int(4)]
             K_0_exponents = [int(i*2) if int(degr_x1+degr_x2)%2 == 0 else int(i*int(2)+int(1)) for i in range(int((degr_x1+degr_x2)/2)+int(1))]
             coefficients = self.coeffs(int(degr_x1+degr_x2))
-            coefficients = [coefficients[i]*int(-1)**i for i in range(int((degr_x1+degr_x2)/2)+int(1))]
+            coefficients = [c*sign for c in coefficients]
+            #coefficients = [coefficients[i]*int(-1)**i for i in range(int((degr_x1+degr_x2)/2)+int(1))]
             l_exponents = [np.ceil((degr_x1+degr_x2)/int(2)) + i for i in range(int((degr_x1+degr_x2)/2)+int(1))]
             derived_form_list.append([[poly_coeffs, coeff, int(l_exp), exp] for exp, coeff, l_exp in zip_longest(K_0_exponents, coefficients, l_exponents, fillvalue=0)])
         diffed_kernel.set_derivation_coefficients_list(derived_form_list)
