@@ -9,6 +9,7 @@ from gpytorch.lazy.non_lazy_tensor import  lazify
 from gpytorch.kernels.kernel import Kernel
 from pyro.nn.module import PyroParam
 from pyro.nn.module import PyroModule
+from sage.all import *
 import sage
 #https://ask.sagemath.org/question/41204/getting-my-own-module-to-work-in-sage/
 from sage.calculus.var import var
@@ -54,13 +55,13 @@ def single_term_extract(d_poly, context, d_var=var('d')):
     degree = int(d_poly.degree(d_var))
     coeff = []
     # It's of the form x^n or x
-    if (len(d_poly.operands()) == 2 and '**' in str(d_poly)) or ((len(d_poly.operands()) == 0) and d_poly.has(d_var)):
+    if ((len(d_poly.operands()) == 2 and ('^' in str(d_poly) or '**' in str(d_poly))) or ((len(d_poly.operands()) == 0) and d_poly.has(d_var))) and not '*' in str(d_poly):
         coeff.append(torch.tensor(float(1.)))
     # It's of the form a*b*...*x^n or a*b*...*x -> extract the coefficients
     elif (not len(d_poly.operands()) == 0):
         for item in d_poly.operands():
             # Check if power or d_var is in item and skip that
-            if '**' in str(item) or item.has(d_var):
+            if ('^' in str(item) or '**' in str(item)) or item.has(d_var):
                 continue
             # if coefficient is a variable, create torch parameter
             # (if it doesn't exist already)
@@ -111,7 +112,7 @@ def extract_operand_list(polynomial, d_var):
     """
 
     # Check for things like (a+b)*x^n and e^3*x^n
-    if type(polynomial) in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.symbolic.expression.Expression] and any(not op.has(d_var) and ('+' in str(op) or '^' in str(op)) for op in polynomial.operands()):
+    if type(polynomial) in [sage.symbolic.expression.Expression] and any(not(not op in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral] and op.has(d_var)) and ('+' in str(op) or '^' in str(op)) for op in polynomial.operands()):
         raise Exception(f"Format unknown, polynomial required for differentiation. \n{str(polynomial)}")
 
     # Check if polynomial is an int/float -> List of operands is just the
@@ -171,7 +172,6 @@ def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'
     deriv_list = []
     left_iteration_list = extract_operand_list(left_poly, left_d_var)
     right_iteration_list = extract_operand_list(right_poly, right_d_var)
-
     left_right = itertools.product(left_iteration_list, right_iteration_list)
     for left, right in left_right:
         left_exponent, left_coeffs = single_term_extract(left, context, left_d_var)
@@ -317,6 +317,10 @@ class diffed_SE_kernel(Kernel):
         def set_derivation_coefficients_list(self, derivation_coefficients_list):
             self.derivation_coefficients_list = derivation_coefficients_list
 
+        def __str__(self):
+            string = f"Received derivation form: {self.derivation_term_dict}\nResulting list (including parameters):{self.derivation_coefficients_list}"
+            return string
+
         def _slice_input(self, X):
             r"""
             Slices :math:`X` according to ``self.active_dims``. If ``X`` is 1D then returns
@@ -373,8 +377,6 @@ class diffed_SE_kernel(Kernel):
             result = None
             # [[[coeff, l_exp, exp], [coeff, l_exp, exp], ...], [[coeff, l_exp, exp], ...], ...]
             for term in self.derivation_coefficients_list:
-                import pdb
-                pdb.set_trace()
                 for summand in term:
                     K_0_exp = summand[3]
                     l_exp = summand[2]
@@ -382,13 +384,13 @@ class diffed_SE_kernel(Kernel):
                     poly_coeffs = summand[0]
 
                     if result is None:
-                        temp = coeff*l_**l_exp*self.K_0**K_0_exp*np.prod(poly_coeffs)
-                        result = sum(temp)
+                        temp = coeff*(l_**l_exp)*(self.K_0**K_0_exp)*np.prod(poly_coeffs)
+                        result = temp
                     else:
                         #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
                         #TODO: This as well
-                        temp = coeff*l_**l_exp*self.K_0**K_0_exp*np.prod(poly_coeffs)
-                        result += sum(temp)
+                        temp = coeff*(l_**l_exp)*(self.K_0**K_0_exp)*np.prod(poly_coeffs)
+                        result += temp
             return self.K_4*result
 
 
@@ -422,11 +424,9 @@ class Diff_SE_kernel(Kernel):
         else:
             # See above
             #T(m,k) = factorial(2*m+1)*2^(k-m)/(factorial(m-k)*factorial(2*k+1))
-            T = lambda m, k: factorial(1*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
+            T = lambda m, k: factorial(2*m+1)*2**(k-m)/(factorial(m-k)*factorial(2*k+1))
 
         return [int(T(real_n, k)) for k in range(real_n+1)]
-
-
 
 
     def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None):
@@ -449,10 +449,10 @@ class Diff_SE_kernel(Kernel):
             poly_coeffs = term[0]
             sign = self.asym_sign_matr[int(degr_x1)%int(4)][int(degr_x2)%int(4)]
             K_0_exponents = [int(i*2) if int(degr_x1+degr_x2)%2 == 0 else int(i*int(2)+int(1)) for i in range(int((degr_x1+degr_x2)/2)+int(1))]
-            coefficients = self.coeffs(int(degr_x1+degr_x2))
-            coefficients = [coefficients[i]*(-1)**i for i in range(int((degr_x1+degr_x2)/2)+int(1))]
+            coefficients = self.A096713_row(int(degr_x1+degr_x2))
+            coefficients = [coefficients[i]*int(-1)**i for i in range(int((degr_x1+degr_x2)/2)+int(1))]
             l_exponents = [np.ceil((degr_x1+degr_x2)/int(2)) + i for i in range(int((degr_x1+degr_x2)/2)+int(1))]
-            derived_form_list.append([[poly_coeffs, coeff, l_exp, exp] for exp, coeff, l_exp in zip_longest(K_0_exponents, coefficients, l_exponents, fillvalue=0)])
+            derived_form_list.append([[poly_coeffs, coeff, int(l_exp), exp] for exp, coeff, l_exp in zip_longest(K_0_exponents, coefficients, l_exponents, fillvalue=0)])
         diffed_kernel.set_derivation_coefficients_list(derived_form_list)
         diffed_kernel.set_derivation_term_dict(derivation_term_list)
         return diffed_kernel
@@ -548,7 +548,7 @@ class MatrixKernel(Kernel):
         if not np.shape(matrix)[0] == np.shape(matrix)[1]:
             assert "Kernel matrix is not square"
         # Set the lower triangle to be symmetric to the upper triangle
-        matrix = make_symmetric(matrix)
+        #matrix = make_symmetric(matrix)
         self.matrix = matrix
         if add_kernel_parameters:
             for i, row in enumerate(self.matrix):
@@ -561,7 +561,12 @@ class MatrixKernel(Kernel):
                         self.base_kernels.append(getattr(self, f"kernel_{i}{j}"))
             print(f"List of all kernels: {self.base_kernels}")
 
-
+    def __str__(self):
+        string = ""
+        for i, row in enumerate(self.matrix):
+            for j, kernel in enumerate(row):
+                string = string + f"[{i},{j}]: " + str(kernel) + "\n\n"
+        return string
 
     def add_named_kernel(self, kernel):
         setattr(self, f"{id(kernel)}", kernel)
