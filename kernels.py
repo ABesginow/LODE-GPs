@@ -318,7 +318,11 @@ class diffed_SE_kernel(Kernel):
             self.derivation_coefficients_list = derivation_coefficients_list
 
         def __str__(self):
-            string = f"Received derivation form: {self.derivation_term_dict}\nResulting list (including parameters):{self.derivation_coefficients_list}"
+            coeff_string = ""
+            for i, summand in enumerate(self.derivation_coefficients_list):
+                for j, op in enumerate(summand):
+                    coeff_string += f" > Summand {i}, entry {j}:\npolynom coefficients:{str(op[0])}\nderivation coefficient:{op[1]}\nl exponent:{op[2]}\n(x1-x2) exponent:{op[-1]}\n"
+            string = f"Received derivation form: {self.derivation_term_dict}\nResulting list (including parameters):\n{coeff_string}"
             return string
 
         def _slice_input(self, X):
@@ -643,7 +647,7 @@ class MatrixKernel(Kernel):
         #        print(torch.eig(result)[0])
         #        assert "Not all Eigenvalues positive"
         print(result)
-        print(result.eig())
+        #print(result.eig())
         return result
 
     def num_outputs_per_input(self, x1, x2):
