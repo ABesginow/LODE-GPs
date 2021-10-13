@@ -641,10 +641,12 @@ class MatrixKernel(Kernel):
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
        # print(f"Interleaved result:\n{result}")
         DEBG = True
-        #if DEBG:
-        #    if not all([True if e[0] > -0.00001  else False for e in torch.eig(result)[0]]):
-        #        print(torch.eig(result)[0])
-        #        assert "Not all Eigenvalues positive"
+        if DEBG:
+            eigs = torch.linalg.eigvals(result)
+            if not all([True if 0 > e.real > -0.00001  else False for e in eigs]):
+                print(eigs.real)
+                print(eigs.imag)
+                #assert "Not all Eigenvalues positive"
         print(result)
         #print(result.eig())
         return result
