@@ -176,6 +176,9 @@ class TestKernel(unittest.TestCase):
         left_poly = (a+1)*dx1**3
         right_poly = (b+a)*dx2
         self.assertRaises(Exception, prepare_asym_deriv_dict, left_poly, right_poly, context)
+        # Failed experiment
+        #left_poly = a*dx1+b*dx1+dx1^2
+        #right_poly =
 
 
 

@@ -112,7 +112,7 @@ def extract_operand_list(polynomial, d_var):
     """
 
     # Check for things like (a+b)*x^n and e^3*x^n
-    if type(polynomial) in [sage.symbolic.expression.Expression] and any(not(not op in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral] and op.has(d_var)) and ('+' in str(op) or '^' in str(op)) for op in polynomial.operands()):
+    if type(polynomial) in [sage.symbolic.expression.Expression] and any(not(not op in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral] and op.has(d_var)) and ('+' in str(op) or '**' in str(op) or '^' in str(op)) for op in polynomial.operands()):
         raise Exception(f"Format unknown, polynomial required for differentiation. \n{str(polynomial)}")
 
     # Check if polynomial is an int/float -> List of operands is just the
@@ -388,12 +388,12 @@ class diffed_SE_kernel(Kernel):
                     poly_coeffs = summand[0]
 
                     if result is None:
-                        temp = coeff*(l_**l_exp)*(self.K_0**K_0_exp)*np.prod(poly_coeffs)
+                        temp = coeff*(l_**l_exp)*(self.K_0**K_0_exp)*torch.prod(torch.Tensor(poly_coeffs))
                         result = temp
                     else:
                         #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
                         #TODO: This as well
-                        temp = coeff*(l_**l_exp)*(self.K_0**K_0_exp)*np.prod(poly_coeffs)
+                        temp = coeff*(l_**l_exp)*(self.K_0**K_0_exp)*torch.prod(torch.Tensor(poly_coeffs))
                         result += temp
             return self.K_4*result
 
@@ -640,14 +640,13 @@ class MatrixKernel(Kernel):
        # print(f"Symmetric result:\n{result}")
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
        # print(f"Interleaved result:\n{result}")
-        DEBG = True
+        DEBG = False
         if DEBG:
             eigs = torch.linalg.eigvals(result)
             if not all([True if 0 > e.real > -0.00001  else False for e in eigs]):
                 print(eigs.real)
                 print(eigs.imag)
                 #assert "Not all Eigenvalues positive"
-        print(result)
         #print(result.eig())
         return result
 
