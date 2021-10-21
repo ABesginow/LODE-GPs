@@ -271,6 +271,44 @@ class SageExpression(Kernel):
         #K_0 = X-Z
 
 
+class exp_kernel(Kernel):
+    def __init__(self, active_dims):
+        super().__init__(active_dims=active_dims)
+
+
+    def _slice_input(self, X):
+        r"""
+        Slices :math:`X` according to ``self.active_dims``. If ``X`` is 1D then returns
+        a 2D tensor with shape :math:`N \times 1`.
+        :param torch.Tensor X: A 1D or 2D input tensor.
+        :returns: a 2D slice of :math:`X`
+        :rtype: torch.Tensor
+        """
+        if X.dim() == 2:
+            return X[:, self.active_dims]
+        elif X.dim() == 1:
+            return X.unsqueeze(1)
+        else:
+            raise ValueError("Input X must be either 1 or 2 dimensional.")
+
+
+    def forward(self, X, Z=None):
+        if len(X.shape) == 1:
+            X = self._slice_input(X)
+        if Z is None:
+            Z = X
+        elif len(Z.shape) == 1:
+            Z = self._slice_input(Z)
+        if X.size(int(1)) != Z.size(int(1)):
+            raise ValueError("Inputs must have the same number of features.")
+        x1_plus_x2 = X+Z
+        return torch.exp(x1_plus_x2)
+
+
+
+
+
+
 class diffed_SE_kernel(Kernel):
         asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
 
