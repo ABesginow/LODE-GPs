@@ -272,9 +272,15 @@ class SageExpression(Kernel):
 
 
 class exp_kernel(Kernel):
-    def __init__(self, active_dims):
+    """
+    Implements a kernel of the form exp^(a*(t1+t2)) where a is a number/variable
+    :param [torch.nn.Parameter, torch.Tensor] factors: Coefficient 'a' in
+    reverse polish notation
+    """
+    def __init__(self, factor, coeff_exponent,  active_dims):
         super().__init__(active_dims=active_dims)
-
+        self.coeff = factor
+        self.exp_coeff = coeff_exponent
 
     def _slice_input(self, X):
         r"""
@@ -305,10 +311,112 @@ class exp_kernel(Kernel):
         return torch.exp(x1_plus_x2)
 
 
+    def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None):
+        # TODO check if id(self) is in parent_context.named_kernel_list and depending on yes/no add variance/lengthscale as parameters or not
+        # If they already exist, take the adresses of the parent hyperparameters and make the diffed_SE_kernel parameters be references to these adresses
+        #if not parent_context is None:
+        diffed_kernel = diffed_exp_kernel(self.coeff, self.exp_coeff, active_dims=self.active_dims)
+        diffed_kernel.set_l_poly(left_poly)
+        diffed_kernel.set_r_poly(right_poly)
+        diffed_kernel.set_base_kernel(self)
+        if parent_context is None:
+            parent_context = diffed_kernel
+        derivation_term_list = prepare_asym_deriv_dict(left_poly, right_poly, parent_context, left_d_var, right_d_var)
+        derived_form_list = []
+        for term in derivation_term_list:
+            # term will have the form [[coeff1, coeff2, ...], exponent of dx1, exponent of dx2]
+            degr_x1 = term[1]
+            degr_x2 = term[2]
+            poly_coeffs = term[0]
+            derived_form_list.append([poly_coeffs, degr_x1+degr_x2])
+            # [coeffs, degr_x1+degr_x2]
+        diffed_kernel.set_derivation_coefficients_list(derived_form_list)
+        diffed_kernel.set_derivation_term_dict(derivation_term_list)
+        return diffed_kernel
+
+class diffed_exp_kernel(Kernel):
+        def __init__(self, active_dims=None):
+            super().__init__(active_dims=active_dims)
+            self.derivation_term_dict = None
+            self.coeff = factor
+            self.exp_coeff = coeff_exponent
+
+        def is_equal(self, other):
+            if not isinstance(other, self.__class__):
+                return False
+            elif other.l_poly == self.l_poly and other.r_poly == self.r_poly and other.base_kernel == self.base_kernel:
+                return True
+
+        def has_equal_basekernel(self, other):
+            if not isinstance(other, self.__class__):
+                return False
+            elif other.base_kernel == self.base_kernel:
+                return True
+
+        def set_r_poly(self, r_poly):
+            self.r_poly = r_poly
+
+        def set_l_poly(self, l_poly):
+            self.l_poly = l_poly
+
+        def set_base_kernel(self, base_kernel):
+            self.base_kernel = id(base_kernel)
+
+        def set_derivation_term_dict(self, derivation_term_dict):
+            self.derivation_term_dict = derivation_term_dict
+
+        def set_derivation_coefficients_list(self, derivation_coefficients_list):
+            self.derivation_coefficients_list = derivation_coefficients_list
+            """
+            The form of derivation_coefficients_list is:
+            Is it a list of lists? Or just a list?
+            [[coeff, coeff_exponent], [coeff, coeff_exponent2], ...]
+            """
+
+        def __str__(self):
+            coeff_string = ""
+            for i, summand in enumerate(self.derivation_coefficients_list):
+                for j, op in enumerate(summand):
+                    coeff_string += f" > Summand {i}, entry {j}:\ncoefficient:{str(op[0])}\nexponent:{op[1]}"
+            string = f"Received derivation form: {self.derivation_term_dict}\nResulting list (including parameters):\n{coeff_string}"
+            return string
+
+        def _slice_input(self, X):
+            r"""
+            Slices :math:`X` according to ``self.active_dims``. If ``X`` is 1D then returns
+            a 2D tensor with shape :math:`N \times 1`.
+            :param torch.Tensor X: A 1D or 2D input tensor.
+            :returns: a 2D slice of :math:`X`
+            :rtype: torch.Tensor
+            """
+            if X.dim() == 2:
+                return X[:, self.active_dims]
+            elif X.dim() == 1:
+                return X.unsqueeze(1)
+            else:
+                raise ValueError("Input X must be either 1 or 2 dimensional.")
+
+        def forward(self, x1, x2, diag=False, **params):
+            if x1 is None:
+                x2 = x1
+            if len(x1.shape) == 1:
+                x1 = self._slice_input(x1)
+            if len(x2.shape) == 1:
+                x2 = self._slice_input(x2)
+            if x1.size(int(1)) != x2.size(int(1)):
+                raise ValueError("Inputs must have the same number of features.")
+
+            x1_plus_x2 = x1+x2
+            exp_of_add = torch.exp(x1_plus_x2)
+            poly_coeffs = self.derivation_coefficients_list[0]
+            exp_coeff_power = self.derivation_coefficients_list[1]
+            result = exp_of_add * torch.prod(poly_coeffs) * (self.exp_coeff ** exp_coeff_power)
+            return result
 
 
 
-
+# TODO The kernel will likely explode whenever I have a torch.nn.parameter as
+# a denominator
 class diffed_SE_kernel(Kernel):
         asym_sign_matr = [[int(1), int(1), int(-1), int(-1)], [int(-1), int(1), int(1), int(-1)], [int(-1), int(-1), int(1), int(1)], [int(1), int(-1), int(-1), int(1)]]
 
