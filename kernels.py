@@ -375,10 +375,11 @@ class diffed_exp_kernel(Kernel):
             """
 
         def __str__(self):
+            import pdb
+            pdb.set_trace()
             coeff_string = ""
             for i, summand in enumerate(self.derivation_coefficients_list):
-                for j, op in enumerate(summand):
-                    coeff_string += f" > Summand {i}, entry {j}:\ncoefficient:{str(op[0])}\nexponent:{op[1]}"
+                coeff_string += f" > Summand {i}:\ncoefficient:{str(summand[0])}\nexponent:{summand[1]}"
             string = f"Received derivation form: {self.derivation_term_dict}\nResulting list (including parameters):\n{coeff_string}"
             return string
 
