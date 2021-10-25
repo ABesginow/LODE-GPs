@@ -277,7 +277,7 @@ class exp_kernel(Kernel):
     :param [torch.nn.Parameter, torch.Tensor] factors: Coefficient 'a' in
     reverse polish notation
     """
-    def __init__(self, factor, coeff_exponent,  active_dims):
+    def __init__(self, factor, coeff_exponent,  active_dims=None):
         super().__init__(active_dims=active_dims)
         self.coeff = factor
         self.exp_coeff = coeff_exponent
@@ -334,8 +334,9 @@ class exp_kernel(Kernel):
         diffed_kernel.set_derivation_term_dict(derivation_term_list)
         return diffed_kernel
 
+
 class diffed_exp_kernel(Kernel):
-        def __init__(self, active_dims=None):
+        def __init__(self, factor, coeff_exponent, active_dims=None):
             super().__init__(active_dims=active_dims)
             self.derivation_term_dict = None
             self.coeff = factor
