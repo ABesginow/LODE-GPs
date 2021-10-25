@@ -375,11 +375,9 @@ class diffed_exp_kernel(Kernel):
             """
 
         def __str__(self):
-            import pdb
-            pdb.set_trace()
             coeff_string = ""
             for i, summand in enumerate(self.derivation_coefficients_list):
-                coeff_string += f" > Summand {i}:\ncoefficient:{str(summand[0])}\nexponent:{summand[1]}"
+                coeff_string += f" > Summand {i}:\ncoefficients:{str(summand[0])}\nexponent:{summand[1]}"
             string = f"Received derivation form: {self.derivation_term_dict}\nResulting list (including parameters):\n{coeff_string}"
             return string
 
@@ -407,12 +405,16 @@ class diffed_exp_kernel(Kernel):
                 x2 = self._slice_input(x2)
             if x1.size(int(1)) != x2.size(int(1)):
                 raise ValueError("Inputs must have the same number of features.")
-
-            x1_plus_x2 = x1+x2
+            result = None
+            x1_plus_x2 = x1+x2.t()
             exp_of_add = torch.exp(x1_plus_x2)
-            poly_coeffs = self.derivation_coefficients_list[0]
-            exp_coeff_power = self.derivation_coefficients_list[1]
-            result = exp_of_add * torch.prod(poly_coeffs) * (self.exp_coeff ** exp_coeff_power)
+            for summand in self.derivation_coefficients_list:
+                poly_coeffs = summand[0]
+                exp_coeff_power = summand[1]
+                if result is None:
+                    result = exp_of_add * torch.prod(torch.Tensor(poly_coeffs)) * (self.exp_coeff ** exp_coeff_power)
+                else:
+                    result += exp_of_add * torch.prod(torch.Tensor(poly_coeffs)) * (self.exp_coeff ** exp_coeff_power)
             return result
 
 
