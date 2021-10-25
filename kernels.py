@@ -397,8 +397,8 @@ class diffed_exp_kernel(Kernel):
             else:
                 raise ValueError("Input X must be either 1 or 2 dimensional.")
 
-        def forward(self, x1, x2, diag=False, **params):
-            if x1 is None:
+        def forward(self, x1, x2=None, diag=False, **params):
+            if x2 is None:
                 x2 = x1
             if len(x1.shape) == 1:
                 x1 = self._slice_input(x1)
