@@ -110,6 +110,11 @@ def extract_operand_list(polynomial, d_var):
     right = (a+b)dx2
     #TODO make them produce errors
     """
+    # This is a hack to enable working with variables (due to matrices being
+    # constructed from a polynomial ring with function fields etc.)
+    from sage.symbolic.ring import SymbolicRing
+    SR = SymbolicRing()
+    polynomial = SR(str(polynomial))
 
     # Check for things like (a+b)*x^n and e^3*x^n
     if type(polynomial) in [sage.symbolic.expression.Expression] and any(not(not op in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral] and op.has(d_var)) and ('+' in str(op) or '**' in str(op) or '^' in str(op)) for op in polynomial.operands()):
@@ -145,13 +150,13 @@ def extract_operand_list(polynomial, d_var):
     # Note: Both 4*x and x^4 will produce the same output via
     # polynomial.operands() i.e. [4, x]
     # -> Pass as is and handle this on a higher level
-    elif len(polynomial.operands()) == 2 and polynomial.has(d_var):
+    elif type(polynomial) is sage.symbolic.expression.Expression and len(polynomial.operands()) == 2 and polynomial.has(d_var):
         list_of_operands = [polynomial]
 
     # Handles things of the form a*x^n which are not sums of deriv expressions
     # which is handled above
     # -> Pass as is and handle this on a higher level
-    elif any(('^' in str(op) and op.has(d_var)) for op in polynomial.operands()) and len(polynomial.operands()) >= 2:
+    elif type(polynomial) is sage.symbolic.expression.Expression and any(('^' in str(op) and op.has(d_var)) for op in polynomial.operands()) and len(polynomial.operands()) >= 2:
         list_of_operands = [polynomial]
 
     # Check if there are only coefficients of sage number types
@@ -160,6 +165,7 @@ def extract_operand_list(polynomial, d_var):
         list_of_operands = [polynomial]
 
     else:
+         print(type(polynomial))
          raise Exception(f"Format unknown, polynomial required for differentiation. \n{str(polynomial)}")
 
     return list_of_operands
