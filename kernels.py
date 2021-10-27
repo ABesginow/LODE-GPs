@@ -421,8 +421,6 @@ class diffed_exp_kernel(Kernel):
                 poly_coeffs = summand[0]
                 exp_coeff_power = summand[1]
                 if result is None:
-                    import pdb
-                    pdb.set_trace()
                     result = exp_of_add * torch.prod(torch.Tensor(poly_coeffs)) * (self.exp_coeff ** exp_coeff_power)
                 else:
                     result += exp_of_add * torch.prod(torch.Tensor(poly_coeffs)) * (self.exp_coeff ** exp_coeff_power)
