@@ -285,6 +285,7 @@ class exp_kernel(Kernel):
     """
     def __init__(self, factor, coeff_exponent,  active_dims=None):
         super().__init__(active_dims=active_dims)
+        self.is_diffable = True
         self.coeff = factor
         self.exp_coeff = coeff_exponent
 
@@ -414,14 +415,18 @@ class diffed_exp_kernel(Kernel):
             result = None
             x1_plus_x2 = x1+x2.t()
             exp_of_add = torch.exp(x1_plus_x2)
+            # TODO this can probably be written even fasterby adding the
+            # elements instead of looping over them
             for summand in self.derivation_coefficients_list:
                 poly_coeffs = summand[0]
                 exp_coeff_power = summand[1]
                 if result is None:
+                    import pdb
+                    pdb.set_trace()
                     result = exp_of_add * torch.prod(torch.Tensor(poly_coeffs)) * (self.exp_coeff ** exp_coeff_power)
                 else:
                     result += exp_of_add * torch.prod(torch.Tensor(poly_coeffs)) * (self.exp_coeff ** exp_coeff_power)
-            return result
+            return self.coeff * result
 
 
 
