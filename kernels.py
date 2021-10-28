@@ -4,6 +4,7 @@ import torch
 from torch.distributions import constraints
 import torch
 from functools import reduce
+import gpytorch
 from gpytorch.lazy import *
 from gpytorch.lazy.non_lazy_tensor import  lazify
 from gpytorch.kernels.kernel import Kernel
@@ -48,10 +49,13 @@ def single_term_extract(d_poly, context, d_var=var('d')):
     """
     Returns the degree and the coefficient (either as tensor or as a parameter)
     """
+    # TODO create variables by iterating over d_poly.variables() instead of this complicated approach I have right now
     assert context is not None, "Context must be specified"
     # Check the polynomial is just a number
-    if not type(d_poly) in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.symbolic.expression.Expression]:
+    if not type(d_poly) in [sage.symbolic.expression.Expression] or (type(d_poly) in [sage.symbolic.expression.Expression] and d_poly.is_numeric()):
         return 0, [torch.tensor(float(d_poly))]
+    var_dict = {str(var): SR.var(str(var)) for var in d_poly.variables()}
+    d_poly = sage_eval(str(d_poly), locals=var_dict)
     degree = int(d_poly.degree(d_var))
     coeff = []
     # It's of the form x^n or x
@@ -110,11 +114,27 @@ def extract_operand_list(polynomial, d_var):
     right = (a+b)dx2
     #TODO make them produce errors
     """
+    list_of_operands = None
+
     # This is a hack to enable working with variables (due to matrices being
     # constructed from a polynomial ring with function fields etc.)
+    # https://ask.sagemath.org/question/41135/converting-strings-into-expressions/
     from sage.symbolic.ring import SymbolicRing
     SR = SymbolicRing()
-    polynomial = SR(str(polynomial))
+    d_var = SR.var(str(d_var))
+    var_dict = {str(var): SR.var(str(var)) for var in polynomial.variables()} if not type(polynomial) in [int, float] else {}
+    var_dict[str(d_var)] = d_var
+    polynomial = sage_eval(str(polynomial), locals=var_dict)
+    # This should theorethically allow things like (a+b)*x^n
+    polynomial = polynomial.expand() if type(polynomial) is sage.symbolic.expression.Expression else polynomial
+
+    w0 = SR.wild(0)
+    w1 = SR.wild(1)
+    w2 = SR.wild(2)
+    exp_plus_constant = sage_eval(f'{str(d_var)}**w0+w1', locals={str(d_var):d_var, 'w0':w0, 'w1':w1})
+    coeff_exp_plus_constant = sage_eval(f'w2*{str(d_var)}**w0+w1', locals={str(d_var):d_var, 'w0':w0, 'w1':w1, 'w2':w2})
+    coeff_exp_zero_plus_constant = sage_eval(f'w0*{str(d_var)}+w1', locals={str(d_var):d_var, 'w0':w0, 'w1':w1})
+
 
     # Check for things like (a+b)*x^n and e^3*x^n
     if type(polynomial) in [sage.symbolic.expression.Expression] and any(not(not op in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral] and op.has(d_var)) and ('+' in str(op) or '**' in str(op) or '^' in str(op)) for op in polynomial.operands()):
@@ -132,26 +152,28 @@ def extract_operand_list(polynomial, d_var):
                            sage.rings.real_mpfr.RealLiteral]:
         list_of_operands = [polynomial]
 
-    # Check if it's just an exponent term without a power by checking length
-    # If it has len == 0 it is a single element expression and produces
-    # empty .operands() list
-    elif type(polynomial) is sage.symbolic.expression.Expression and len(polynomial.operands()) == 0 and polynomial.has(d_var):
+    # Check if it's just an exponent term without a power or coefficient
+    elif polynomial.is_symbol():
+    #type(polynomial) is sage.symbolic.expression.Expression and len(polynomial.operands()) == 0 and polynomial.has(d_var):
         list_of_operands = [polynomial]
-
-    # IF polynomial.operands() is non empty AND every element has
-    # left_d_var -> sum of deriv expressions
-    elif '+' in str(polynomial) and type(polynomial) is sage.symbolic.expression.Expression:
-    #elif type(polynomial) is sage.symbolic.expression.Expression and (all(op.has(d_var) for op in polynomial.operands()) and len(polynomial.operands()) >= 2):
-        list_of_operands = polynomial.operands()
-
-
 
     # Check if there is a coefficient times/to the power of x
     # Note: Both 4*x and x^4 will produce the same output via
     # polynomial.operands() i.e. [4, x]
     # -> Pass as is and handle this on a higher level
-    elif type(polynomial) is sage.symbolic.expression.Expression and len(polynomial.operands()) == 2 and polynomial.has(d_var):
+    elif type(polynomial) is sage.symbolic.expression.Expression and len(polynomial.operands()) == 2 and polynomial.has(d_var) and not ('-' in str(polynomial) or '+' in str(polynomial)):
         list_of_operands = [polynomial]
+
+    # TODO to test. But if operands are at least 3 elements, this should be
+    # proper deriv term
+    elif ('+' in str(polynomial) or '-' in str(polynomial)) and type(polynomial) is sage.symbolic.expression.Expression and len(polynomial.operands()) > 2:
+        list_of_operands = polynomial.operands()
+
+    # See if the polynomial is of the general form "x^n + m"
+    elif len(polynomial.find(exp_plus_constant)) > 0 or len(polynomial.find(coeff_exp_plus_constant)) > 0 or len(polynomial.find(coeff_exp_zero_plus_constant)) > 0:
+        list_of_operands = polynomial.operands()
+    #elif type(polynomial) is sage.symbolic.expression.Expession and ((not '*' in str(polynomial) and '+' in str(polynomial)) or ('*' in str(polynomial) and '+' in str(polynomial))) and any('^' in str(op) for op in polynomial.operands()):
+    #    list_of_operands = polynomial.operands()
 
     # Handles things of the form a*x^n which are not sums of deriv expressions
     # which is handled above
@@ -164,7 +186,7 @@ def extract_operand_list(polynomial, d_var):
     elif type(polynomial) is sage.symbolic.expression.Expression and all(type(op) in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.symbolic.expression.Expression] for op in polynomial.operands()) and not any(op.has(d_var) for op in polynomial.operands()):
         list_of_operands = [polynomial]
 
-    else:
+    if list_of_operands is None:
          print(type(polynomial))
          raise Exception(f"Format unknown, polynomial required for differentiation. \n{str(polynomial)}")
 
@@ -385,7 +407,7 @@ class diffed_exp_kernel(Kernel):
             coeff_string = ""
             for i, summand in enumerate(self.derivation_coefficients_list):
                 coeff_string += f" > Summand {i}:\ncoefficients:{str(summand[0])}\nexponent:{summand[1]}"
-            string = f"Received derivation form: {self.derivation_term_dict}\nResulting list (including parameters):\n{coeff_string}"
+            string = f"_diffed_exp_kernel_\nReceived derivation form: {self.derivation_term_dict}\nResulting list (including parameters):\n{coeff_string}"
             return string
 
         def _slice_input(self, X):
@@ -481,7 +503,7 @@ class diffed_SE_kernel(Kernel):
             for i, summand in enumerate(self.derivation_coefficients_list):
                 for j, op in enumerate(summand):
                     coeff_string += f" > Summand {i}, entry {j}:\npolynom coefficients:{str(op[0])}\nderivation coefficient:{op[1]}\nl exponent:{op[2]}\n(x1-x2) exponent:{op[-1]}\n"
-            string = f"Received derivation form: {self.derivation_term_dict}\nResulting list (including parameters):\n{coeff_string}"
+            string = f"_diffed_SE_kernel_\nReceived derivation form: {self.derivation_term_dict}\nResulting list (including parameters):\n{coeff_string}"
             return string
 
         def _slice_input(self, X):
@@ -731,7 +753,13 @@ class MatrixKernel(Kernel):
         string = ""
         for i, row in enumerate(self.matrix):
             for j, kernel in enumerate(row):
-                string = string + f"[{i},{j}]: " + str(kernel) + "\n\n"
+                if type(kernel) is gpytorch.kernels.AdditiveKernel:
+                    full_kernel = ""
+                    for k_ in kernel.kernels:
+                        full_kernel += f"{str(k_)} \n"
+                    string = string + f"[{i},{j}]: " + str(full_kernel) + "\n\n"
+                else:
+                    string = string + f"[{i},{j}]: " + str(kernel) + "\n\n"
         return string
 
     def add_named_kernel(self, kernel):

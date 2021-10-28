@@ -20,8 +20,6 @@ class TestKernel(unittest.TestCase):
         a, b, dx1 = var('a, b, dx1')
         left_poly = a*dx1
         right_poly = b
-        import pdb
-        #pdb.set_trace()
         result = prepare_asym_deriv_dict(left_poly, right_poly, context)
         self.assertIsInstance(result[0][0][0], torch.nn.Parameter, "Hyperparameter 1 wasn't initialized properly")
         self.assertIsInstance(result[0][0][1], torch.nn.Parameter, "Hyperparameter 2 wasn't initialized properly")
@@ -172,13 +170,20 @@ class TestKernel(unittest.TestCase):
         left_poly = e**3*dx1
         right_poly = 1
         self.assertRaises(Exception, prepare_asym_deriv_dict, left_poly, right_poly, context)
-        #
-        left_poly = (a+1)*dx1**3
-        right_poly = (b+a)*dx2
-        self.assertRaises(Exception, prepare_asym_deriv_dict, left_poly, right_poly, context)
+        # Added that in the code, perhaps now check if result is right?
+        #left_poly = (a+1)*dx1**3
+        #right_poly = (b+a)*dx2
+        #self.assertRaises(Exception, prepare_asym_deriv_dict, left_poly, right_poly, context)
         # Failed experiment
         #left_poly = a*dx1+b*dx1+dx1^2
         #right_poly =
+        left_poly = 2*dx1 - 2
+        right_poly = 2*dx2 - 2
+        import pdb
+        pdb.set_trace()
+        result = prepare_asym_deriv_dict(left_poly, right_poly, context)
+        # Result should be [[[tensor(2.), tensor(2.)], 1, 1],[[tensor(-2.), tensor(2.)], 0, 1],[[tensor(2.), tensor(-2.)], 1, 0],[[tensor(-2.), tensor(-2.)], 0, 0]]
+
 
 
 
