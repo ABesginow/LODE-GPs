@@ -137,7 +137,7 @@ def extract_operand_list(polynomial, d_var):
 
 
     # Check for things like (a+b)*x^n and e^3*x^n
-    if type(polynomial) in [sage.symbolic.expression.Expression] and any(not(not op in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral] and op.has(d_var)) and ('+' in str(op) or '**' in str(op) or '^' in str(op)) for op in polynomial.operands()):
+    if type(polynomial) in [sage.symbolic.expression.Expression] and any(not(not op in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.rings.rational.Rational] and op.has(d_var)) and ('+' in str(op) or '**' in str(op) or '^' in str(op)) for op in polynomial.operands()):
         raise Exception(f"Format unknown, polynomial required for differentiation. \n{str(polynomial)}")
 
     # Check if polynomial is an int/float -> List of operands is just the
@@ -149,7 +149,7 @@ def extract_operand_list(polynomial, d_var):
     # Integer/RealLiteral since this is treated differently by sage
     # -> List of operands is just the Integer/RealLiteral
     elif type(polynomial) in [sage.rings.integer.Integer,
-                           sage.rings.real_mpfr.RealLiteral]:
+                           sage.rings.real_mpfr.RealLiteral, sage.rings.rational.Rational]:
         list_of_operands = [polynomial]
 
     # Check if it's just an exponent term without a power or coefficient
@@ -183,7 +183,7 @@ def extract_operand_list(polynomial, d_var):
 
     # Check if there are only coefficients of sage number types
     # -> return as is and handle this on a higher level
-    elif type(polynomial) is sage.symbolic.expression.Expression and all(type(op) in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.symbolic.expression.Expression] for op in polynomial.operands()) and not any(op.has(d_var) for op in polynomial.operands()):
+    elif type(polynomial) is sage.symbolic.expression.Expression and all(type(op) in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.symbolic.expression.Expression, sage.rings.rational.Rational] for op in polynomial.operands()) and not any(op.has(d_var) for op in polynomial.operands()):
         list_of_operands = [polynomial]
 
     if list_of_operands is None:
