@@ -92,7 +92,7 @@ def single_term_extract(d_poly, context, d_var=var('d')):
     return degree, coeff
 
 
-def extract_operand_list(polynomial, d_var):
+def extract_operand_list(polynomial, d_var, var_dict=None):
     """
     Cases to take care of
      - [x] Simply int/float values as either right or left poly
@@ -108,12 +108,6 @@ def extract_operand_list(polynomial, d_var):
        (e.g. left= a*x1^3)
      - [x] Other cases should all cause errors
     """
-    """
-    Known cases that pass but produce wrong results:
-    left =  (a+1)*dx1^3
-    right = (a+b)dx2
-    #TODO make them produce errors
-    """
     list_of_operands = None
 
     # This is a hack to enable working with variables (due to matrices being
@@ -122,8 +116,13 @@ def extract_operand_list(polynomial, d_var):
     from sage.symbolic.ring import SymbolicRing
     SR = SymbolicRing()
     d_var = SR.var(str(d_var))
-    var_dict = {str(var): SR.var(str(var)) for var in polynomial.variables()} if not type(polynomial) in [int, float] else {}
+    if var_dict is None:
+        var_dict = {str(var): SR.var(str(var)) for var in polynomial.variables()} if not type(polynomial) in [int, float] else {}
+    else:
+        var_dict = {str(var): SR.var(var_dict[var]) for var in var_dict}
     var_dict[str(d_var)] = d_var
+    import pdb
+    pdb.set_trace()
     polynomial = sage_eval(str(polynomial), locals=var_dict)
     # This should theorethically allow things like (a+b)*x^n
     polynomial = polynomial.expand() if type(polynomial) is sage.symbolic.expression.Expression else polynomial
@@ -193,13 +192,13 @@ def extract_operand_list(polynomial, d_var):
     return list_of_operands
 
 
-def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'), right_d_var=var('dx2')):
+def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'), right_d_var=var('dx2'), var_dict=None):
     assert context is not None, "Context must be specified"
     # Will be filled as follows: [[[var_left, var_right], d^left, d^right], ...]
     # [[[0, a], 1, 3], [[b, 17], 0, 0], [[c, d], 17, 42], ...]
     deriv_list = []
-    left_iteration_list = extract_operand_list(left_poly, left_d_var)
-    right_iteration_list = extract_operand_list(right_poly, right_d_var)
+    left_iteration_list = extract_operand_list(left_poly, left_d_var, var_dict=var_dict)
+    right_iteration_list = extract_operand_list(right_poly, right_d_var, var_dict=var_dict)
     left_right = itertools.product(left_iteration_list, right_iteration_list)
     for left, right in left_right:
         left_exponent, left_coeffs = single_term_extract(left, context, left_d_var)
@@ -340,7 +339,7 @@ class exp_kernel(Kernel):
         return torch.exp(x1_plus_x2)
 
 
-    def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None):
+    def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None, var_dict=None):
         # TODO check if id(self) is in parent_context.named_kernel_list and depending on yes/no add variance/lengthscale as parameters or not
         # If they already exist, take the adresses of the parent hyperparameters and make the diffed_SE_kernel parameters be references to these adresses
         #if not parent_context is None:
@@ -350,7 +349,7 @@ class exp_kernel(Kernel):
         diffed_kernel.set_base_kernel(self)
         if parent_context is None:
             parent_context = diffed_kernel
-        derivation_term_list = prepare_asym_deriv_dict(left_poly, right_poly, parent_context, left_d_var, right_d_var)
+        derivation_term_list = prepare_asym_deriv_dict(left_poly, right_poly, parent_context, left_d_var, right_d_var, var_dict=var_dict)
         derived_form_list = []
         for term in derivation_term_list:
             # term will have the form [[coeff1, coeff2, ...], exponent of dx1, exponent of dx2]
@@ -617,7 +616,7 @@ class Diff_SE_kernel(Kernel):
         return [int(T(real_n, k)) for k in range(real_n+1)]
 
 
-    def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None):
+    def diff(self, left_poly, right_poly, left_d_var=var('dx1'), right_d_var=var('dx2'), parent_context=None, var_dict=None):
         # TODO check if id(self) is in parent_context.named_kernel_list and depending on yes/no add variance/lengthscale as parameters or not
         # If they already exist, take the adresses of the parent hyperparameters and make the diffed_SE_kernel parameters be references to these adresses
         #if not parent_context is None:
@@ -628,7 +627,7 @@ class Diff_SE_kernel(Kernel):
         diffed_kernel.set_base_kernel(self)
         if parent_context is None:
             parent_context = diffed_kernel
-        derivation_term_list = prepare_asym_deriv_dict(left_poly, right_poly, parent_context, left_d_var, right_d_var)
+        derivation_term_list = prepare_asym_deriv_dict(left_poly, right_poly, parent_context, left_d_var, right_d_var, var_dict=var_dict)
         derived_form_list = []
         for term in derivation_term_list:
             # term will have the form [[coeff1, coeff2, ...], exponent of dx1, exponent of dx2]
@@ -849,10 +848,14 @@ class DiffMatrixKernel(MatrixKernel):
         super().__init__(matrix, active_dims=active_dims)
 
 
-    def calc_cell_diff(self, L, M, R, context=None):
+    def calc_cell_diff(self, L, M, R, context=None, var_dict=None):
         result_kernel = None
         # https://stackoverflow.com/questions/6473679/transpose-list-
         # of-lists
+        print("left")
+        print(L)
+        print("right")
+        print(R)
         M_transpose = list(
            map(list, itertools.zip_longest(*M, fillvalue=None)))
         # Every row in 'M' is combined with each elem of the row given in 'R'
@@ -862,7 +865,7 @@ class DiffMatrixKernel(MatrixKernel):
             # Or: Combine each element in row_M with exactly one element in 'L'
             for l_elem, m_elem in zip(L, row_M):
                 if m_elem is not None:
-                    current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context)
+                    current_kernel = m_elem.diff(left_poly=l_elem, right_poly=r_elem, parent_context=context, var_dict=var_dict)
                    #condition = any(e.has_equal_basekernel(current_kernel) for e in context.named_kernels) if hasattr(current_kernel, 'is_equal') else any(e is current_kernel for e in context.named_kernels)
                     #if condition:
                     #    index_condition = [e.has_equal_basekernel(current_kernel) if hasattr(current_kernel, 'is_equal') else e == current_kernel for e in context.named_kernels]
@@ -881,15 +884,18 @@ class DiffMatrixKernel(MatrixKernel):
                         #    result_kernel += context.named_kernels[index]
                 else:
                     pass
+        print("Result kernel")
+        print(result_kernel)
         return result_kernel
 
-    def diff(self, left_matrix=None, right_matrix=None):
+    def diff(self, left_matrix=None, right_matrix=None, var_dict=None):
         # iterate left matrix by rows and right matrix by columns and call the
         # respective diff command of the kernels with the row/cols as params
         kernel = MatrixKernel(None)
         output_matrix = [[0 for i in range(np.shape(self.matrix)[1])] for j in range(np.shape(self.matrix)[0])]
         for i, (l, r) in enumerate(itertools.product(left_matrix.rows(), right_matrix.columns())):
-            res = self.calc_cell_diff(l, self.matrix, r, context=kernel)
+            print(f"i\n{i}")
+            res = self.calc_cell_diff(l, self.matrix, r, context=kernel, var_dict=var_dict)
             output_matrix[int(i/np.shape(self.matrix)[0])][
                         int(i % np.shape(self.matrix)[0])]  = res
         kernel.set_matrix(output_matrix)
