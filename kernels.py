@@ -119,7 +119,7 @@ def extract_operand_list(polynomial, d_var, var_dict=None):
     if var_dict is None:
         var_dict = {str(var): SR.var(str(var)) for var in polynomial.variables()} if not type(polynomial) in [int, float] else {}
     else:
-        var_dict = {str(var): SR.var(var_dict[var]) for var in var_dict}
+        var_dict = {str(var): SR.var(var) for var in var_dict}
     var_dict[str(d_var)] = d_var
     import pdb
     pdb.set_trace()
