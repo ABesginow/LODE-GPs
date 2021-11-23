@@ -58,8 +58,8 @@ def single_term_extract(d_poly, context, d_var=var('d')):
     degree = int(d_poly.degree(d_var))
     coeff = []
     for var in var_dict:
-        if not hasattr(context, str(item)):
-            setattr(context,  str(item),
+        if not hasattr(context, str(var)):
+            setattr(context,  str(var),
                     torch.nn.Parameter(torch.tensor(float(1.)),
                     requires_grad=True))
     # It's of the form x^n or x
