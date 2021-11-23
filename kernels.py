@@ -121,8 +121,6 @@ def extract_operand_list(polynomial, d_var, var_dict=None):
     else:
         var_dict = {str(var): SR.var(var) for var in var_dict}
     var_dict[str(d_var)] = d_var
-    import pdb
-    pdb.set_trace()
     polynomial = sage_eval(str(polynomial), locals=var_dict)
     # This should theorethically allow things like (a+b)*x^n
     polynomial = polynomial.expand() if type(polynomial) is sage.symbolic.expression.Expression else polynomial
@@ -133,10 +131,12 @@ def extract_operand_list(polynomial, d_var, var_dict=None):
     exp_plus_constant = sage_eval(f'{str(d_var)}**w0+w1', locals={str(d_var):d_var, 'w0':w0, 'w1':w1})
     coeff_exp_plus_constant = sage_eval(f'w2*{str(d_var)}**w0+w1', locals={str(d_var):d_var, 'w0':w0, 'w1':w1, 'w2':w2})
     coeff_exp_zero_plus_constant = sage_eval(f'w0*{str(d_var)}+w1', locals={str(d_var):d_var, 'w0':w0, 'w1':w1})
-
+    exp_zero_plus_constant = sage_eval(f'{str(d_var)}+w1', locals={str(d_var):d_var, 'w0':w0, 'w1':w1})
 
     # Check for things like (a+b)*x^n and e^3*x^n
     if type(polynomial) in [sage.symbolic.expression.Expression] and any(not(not op in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.rings.rational.Rational] and op.has(d_var)) and ('+' in str(op) or '**' in str(op) or '^' in str(op)) for op in polynomial.operands()):
+        import pdb
+        pdb.set_trace()
         raise Exception(f"Format unknown, polynomial required for differentiation. \n{str(polynomial)}")
 
     # Check if polynomial is an int/float -> List of operands is just the
@@ -169,7 +169,7 @@ def extract_operand_list(polynomial, d_var, var_dict=None):
         list_of_operands = polynomial.operands()
 
     # See if the polynomial is of the general form "x^n + m"
-    elif len(polynomial.find(exp_plus_constant)) > 0 or len(polynomial.find(coeff_exp_plus_constant)) > 0 or len(polynomial.find(coeff_exp_zero_plus_constant)) > 0:
+    elif len(polynomial.find(exp_plus_constant)) > 0 or len(polynomial.find(coeff_exp_plus_constant)) > 0 or len(polynomial.find(coeff_exp_zero_plus_constant)) > 0 or len(polynomial.find(exp_zero_plus_constant))> 0:
         list_of_operands = polynomial.operands()
     #elif type(polynomial) is sage.symbolic.expression.Expession and ((not '*' in str(polynomial) and '+' in str(polynomial)) or ('*' in str(polynomial) and '+' in str(polynomial))) and any('^' in str(op) for op in polynomial.operands()):
     #    list_of_operands = polynomial.operands()
@@ -187,6 +187,8 @@ def extract_operand_list(polynomial, d_var, var_dict=None):
 
     if list_of_operands is None:
          print(type(polynomial))
+         import pdb
+         pdb.set_trace()
          raise Exception(f"Format unknown, polynomial required for differentiation. \n{str(polynomial)}")
 
     return list_of_operands
