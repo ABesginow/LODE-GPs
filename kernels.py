@@ -49,7 +49,6 @@ def single_term_extract(d_poly, context, d_var=var('d')):
     """
     Returns the degree and the coefficient (either as tensor or as a parameter)
     """
-    # TODO create variables by iterating over d_poly.variables() instead of this complicated approach I have right now
     assert context is not None, "Context must be specified"
     # Check the polynomial is just a number
     if not type(d_poly) in [sage.symbolic.expression.Expression] or (type(d_poly) in [sage.symbolic.expression.Expression] and d_poly.is_numeric()):
@@ -58,6 +57,11 @@ def single_term_extract(d_poly, context, d_var=var('d')):
     d_poly = sage_eval(str(d_poly), locals=var_dict)
     degree = int(d_poly.degree(d_var))
     coeff = []
+    for var in var_dict:
+        if not hasattr(context, str(item)):
+            setattr(context,  str(item),
+                    torch.nn.Parameter(torch.tensor(float(1.)),
+                    requires_grad=True))
     # It's of the form x^n or x
     if ((len(d_poly.operands()) == 2 and ('^' in str(d_poly) or '**' in str(d_poly))) or ((len(d_poly.operands()) == 0) and d_poly.has(d_var))) and not '*' in str(d_poly):
         coeff.append(torch.tensor(float(1.)))
@@ -70,12 +74,7 @@ def single_term_extract(d_poly, context, d_var=var('d')):
             # if coefficient is a variable, create torch parameter
             # (if it doesn't exist already)
             if not item.is_numeric():
-                # If it doesn't exist, a trainable parameter with initial value 1 is created
-                if not hasattr(context, str(item)):
-                    setattr(context,  str(item),
-                            torch.nn.Parameter(torch.tensor(float(1.)),
-                            requires_grad=True))
-                coeff.append(getattr(context, str(item)))
+               coeff.append(getattr(context, str(item)))
             # if coefficient is constant, float() it
             else:
                 coeff.append(torch.tensor(float(item)))
@@ -84,10 +83,6 @@ def single_term_extract(d_poly, context, d_var=var('d')):
         if d_poly.is_numeric():
             coeff.append(torch.tensor(float(d_poly)))
         else:
-            if not hasattr(context, str(d_poly)):
-                setattr(context,  str(d_poly),
-                        torch.nn.Parameter(torch.tensor(float(1.)),
-                        requires_grad=True))
             coeff.append(getattr(context, str(d_poly)))
     return degree, coeff
 
