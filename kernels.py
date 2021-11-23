@@ -55,7 +55,11 @@ def single_term_extract(d_poly, context, d_var=var('d')):
         return 0, [torch.tensor(float(d_poly))]
     var_dict = {str(var): SR.var(str(var)) for var in d_poly.variables()}
     d_poly = sage_eval(str(d_poly), locals=var_dict)
-    degree = int(d_poly.degree(d_var))
+    coefficients = d_poly.coefficients(d_var)
+    if not len(coefficients) == 1:
+        raise Exception(f"d_poly must have exactly 1 coeff and degree, something is weird.")
+    degree = coefficients[0][1]
+    sage_coefficient = coefficients[0][0]
     coeff = []
     for var in var_dict:
         if not hasattr(context, str(var)):
