@@ -19,6 +19,11 @@ import numpy as np
 import pdb
 from gpytorch.constraints import Positive
 
+torch_operations = {'mul': torch.mul, 'add': torch.add,
+                    'pow': torch.pow, 'exp':torch.exp,
+                    'sin':torch.sin, 'cos':torch.cos,
+                    'log': torch.log}
+
 
 DEBUG =False
 def make_symmetric(matrix):
@@ -40,6 +45,59 @@ def make_symmetric(matrix):
         matrix[i % row_len][int(i/row_len)] = matrix[int(i/row_len)][i % row_len]
 
     return matrix
+
+def extract_operation(operation : str):
+    # 'log' -> log(a), log(3), ...
+    # 'sin' -> sin(a), sin(3), ...
+    # 'exp' ...
+    # 'cos' ...
+    if operation in ['log', 'sin', 'exp', 'cos']:
+        return operation
+    # Operations are otherwise coded like '<function mul_varargs at 0xbbf31>'
+    # '<built-in function pow>' -> i.e. 1/a or a^n
+    elif operation == '<built-in function pow>':
+        return 'pow'
+    # '<function mul_vararg at 0x2ae95fb80>' -> a*b, 3/a, b/a etc.
+    elif 'mul_vararg' in operation:
+        return 'mul'
+    # '<function add_vararg at 0x2ae95f9d0>' -> a+b, 4+b, a+1/b
+    elif 'add_vararg' in operation:
+        return 'add'
+
+def extract_coefficient_recursively(coefficient, context):
+
+    # We have a big group of summands/multiplicants (e.g. a+b+c)
+    if len(coefficient.operands()) > 2:
+        # Do something with lists and loops
+        prev_entry = None
+        for entry in coefficient.operands():
+            if not entry.is_symbol() or entry.is_numeric() or entry.is_constant():
+                stuff = extract_coefficient_recursively(entry, context)
+            if prev_entry is None:
+                prev_entry = stuff
+            elif prev_entry and callable(prev_entry) and not type(prev_entry) in [sage.symbolic.expression.Expression]:
+                # TODO see if the order of operation is correct this way (but should be actually)
+                prev_entry = lambda : torch_operations[extract_operation(str(coefficient.operator()))](prev_entry(), stuff)
+            else:
+                prev_entry = lambda : torch_operations[extract_operation(str(coefficient.operator()))](prev_entry, stuff)
+
+    # We have e.g. 3*a or 5/a etc.
+    elif len(coefficient.operands()) == 2:
+        left, right = coefficient.operands()
+        left = extract_coefficient_recursively(left, context)
+        right = extract_coefficient_recursively(right, context)
+        coeff = lambda: torch_operations[extract_operation(str(coefficient.operator()))](left, right)
+
+    # coefficient is variable, find the corresponding parameter
+    elif coefficient.is_symbol():
+        coeff = getattr(context, str(coefficient))
+
+    # if coefficient is numeric/constant, float() it
+    else:
+        coeff = torch.tensor(float(coefficient))
+
+    return coeff
+
 
 
 
@@ -67,23 +125,13 @@ def single_term_extract(d_poly, context, d_var=var('d')):
                     torch.nn.Parameter(torch.tensor(float(1.)),
                     requires_grad=True))
     # It's of the form x^n or x
-    if ((len(d_poly.operands()) == 2 and ('^' in str(d_poly) or '**' in str(d_poly))) or ((len(d_poly.operands()) == 0) and d_poly.has(d_var))) and not '*' in str(d_poly):
+    if int(sage_coefficient) == 1:
         coeff.append(torch.tensor(float(1.)))
     # It's of the form a*b*...*x^n or a*b*...*x -> extract the coefficients
-    elif (not len(d_poly.operands()) == 0):
-        for item in d_poly.operands():
-            # Check if power or d_var is in item and skip that
-            if ('^' in str(item) or '**' in str(item)) or item.has(d_var):
-                continue
-            # if coefficient is a variable, create torch parameter
-            # (if it doesn't exist already)
-            if not item.is_numeric():
-               coeff.append(getattr(context, str(item)))
-            # if coefficient is constant, float() it
-            else:
-                coeff.append(torch.tensor(float(item)))
+    elif not sage_coefficient.is_numeric():
+        coeff = [extract_coefficient_recursively(sage_coefficient, context, var_dict)]
     # Check if d_poly is just a variable/number
-    elif len(d_poly.operands()) == 0 and not d_poly.has(d_var):
+    else:
         if d_poly.is_numeric():
             coeff.append(torch.tensor(float(d_poly)))
         else:
