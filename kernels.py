@@ -106,7 +106,7 @@ def single_term_extract(d_poly, context, d_var=var('d')):
     """
     assert context is not None, "Context must be specified"
     sage_coefficient = d_poly[0]
-    degree = d_poly[1]
+    degree = int(d_poly[1])
     coeff = []
     if type(sage_coefficient) in [sage.rings.integer.Integer,
               sage.rings.real_mpfr.RealLiteral, sage.rings.rational.Rational]:
@@ -195,7 +195,7 @@ def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'
     deriv_list = []
     if var_dict is not None:
         for var in var_dict:
-            if not hasattr(context, str(var)):
+            if not hasattr(context, str(var)) and not str(var) == str(left_d_var) and not str(var) == str(right_d_var) and not str(var) == 'x':
                 setattr(context,  str(var),
                         torch.nn.Parameter(torch.tensor(float(1.)),
                         requires_grad=True))
@@ -584,6 +584,7 @@ class diffed_SE_kernel(Kernel):
 
 
 
+
 class Diff_SE_kernel(Kernel):
 
     asym_sign_matr = [[int(1), int(1), int(-1), int(-1)],
@@ -839,6 +840,8 @@ class MatrixKernel(Kernel):
                 print(eigs.imag)
                 #assert "Not all Eigenvalues positive"
         #print(result.eig())
+        import pdb
+        pdb.set_trace()
         return result
 
     def num_outputs_per_input(self, x1, x2):
