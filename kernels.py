@@ -490,6 +490,8 @@ class diffed_exp_kernel(Kernel):
             for summand in self.derivation_coefficients_list:
                 poly_coeffs = summand[0]
                 exp_coeff_power = summand[1]
+                if any(callable(p_coeff) and not type(p_coeff) in [sage.symbolic.expression.Expression] for p_coeff in poly_coeffs):
+                    poly_coeffs = [p_coeff if not callable(p_coeff) else p_coeff() for p_coeff in poly_coeffs]
                 if result is None:
                     result = exp_of_add * torch.prod(torch.Tensor(poly_coeffs)) * (self.exp_coeff ** exp_coeff_power)
                 else:
@@ -615,7 +617,8 @@ class diffed_SE_kernel(Kernel):
                     l_exp = summand[2]
                     coeff = summand[1]
                     poly_coeffs = summand[0]
-
+                    if any(callable(p_coeff) and not type(p_coeff) in [sage.symbolic.expression.Expression] for p_coeff in poly_coeffs):
+                        poly_coeffs = [p_coeff if not callable(p_coeff) else p_coeff() for p_coeff in poly_coeffs]
                     if result is None:
                         temp = coeff*(l_**l_exp)*(self.K_0**K_0_exp)*torch.prod(torch.Tensor(poly_coeffs))
                         result = temp
