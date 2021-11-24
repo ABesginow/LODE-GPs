@@ -128,14 +128,14 @@ def single_term_extract(d_poly, context, d_var=var('d')):
     if int(sage_coefficient) == 1:
         coeff.append(torch.tensor(float(1.)))
     # It's of the form a*b*...*x^n or a*b*...*x -> extract the coefficients
-    elif not sage_coefficient.is_numeric():
+    elif not sage_coefficient.is_numeric() or not sage_coefficient.is_symbol() or not sage_coefficient.is_constant():
         coeff = [extract_coefficient_recursively(sage_coefficient, context, var_dict)]
     # Check if d_poly is just a variable/number
     else:
-        if d_poly.is_numeric():
-            coeff.append(torch.tensor(float(d_poly)))
+        if sage_coefficient.is_numeric() or sage_coefficient.is_constant():
+            coeff.append(torch.tensor(float(sage_coefficient)))
         else:
-            coeff.append(getattr(context, str(d_poly)))
+            coeff.append(getattr(context, str(sage_coefficient)))
     return degree, coeff
 
 
