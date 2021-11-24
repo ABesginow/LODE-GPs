@@ -99,38 +99,25 @@ def extract_coefficient_recursively(coefficient, context):
     return coeff
 
 
-
-
-
     # Written for the asymmetric (general) case
 def single_term_extract(d_poly, context, d_var=var('d')):
     """
     Returns the degree and the coefficient (either as tensor or as a parameter)
     """
     assert context is not None, "Context must be specified"
-    # Check the polynomial is just a number
-    if not type(d_poly) in [sage.symbolic.expression.Expression] or (type(d_poly) in [sage.symbolic.expression.Expression] and d_poly.is_numeric()):
-        return 0, [torch.tensor(float(d_poly))]
-    var_dict = {str(var): SR.var(str(var)) for var in d_poly.variables()}
-    d_poly = sage_eval(str(d_poly), locals=var_dict)
-    coefficients = d_poly.coefficients(d_var)
-    if not len(coefficients) == 1:
-        raise Exception(f"d_poly must have exactly 1 coeff and degree, something is weird.")
-    degree = coefficients[0][1]
-    sage_coefficient = coefficients[0][0]
+    sage_coefficient = d_poly[0]
+    degree = d_poly[1]
     coeff = []
-    for var in var_dict:
-        if not hasattr(context, str(var)):
-            setattr(context,  str(var),
-                    torch.nn.Parameter(torch.tensor(float(1.)),
-                    requires_grad=True))
+    if type(sage_coefficient) in [sage.rings.integer.Integer,
+              sage.rings.real_mpfr.RealLiteral, sage.rings.rational.Rational]:
+        coeff.append(torch.tensor(float(sage_coefficient)))
     # It's of the form x^n or x
-    if sage_coefficient.is_numeric() and int(sage_coefficient) == 1:
+    elif sage_coefficient.is_numeric() and int(sage_coefficient) == 1:
         coeff.append(torch.tensor(float(1.)))
     # It's of the form a*b*...*x^n or a*b*...*x -> extract the coefficients
     elif not sage_coefficient.is_numeric() or not sage_coefficient.is_symbol() or not sage_coefficient.is_constant():
         coeff = [extract_coefficient_recursively(sage_coefficient, context)]
-    # Check if d_poly is just a variable/number
+    # Check if d_poly is just a variable/number/constant
     else:
         if sage_coefficient.is_numeric() or sage_coefficient.is_constant():
             coeff.append(torch.tensor(float(sage_coefficient)))
@@ -171,66 +158,26 @@ def extract_operand_list(polynomial, d_var, var_dict=None):
     polynomial = sage_eval(str(polynomial), locals=var_dict)
     # This should theorethically allow things like (a+b)*x^n
     polynomial = polynomial.expand() if type(polynomial) is sage.symbolic.expression.Expression else polynomial
-
-    w0 = SR.wild(0)
-    w1 = SR.wild(1)
-    w2 = SR.wild(2)
-    exp_plus_constant = sage_eval(f'{str(d_var)}**w0+w1', locals={str(d_var):d_var, 'w0':w0, 'w1':w1})
-    coeff_exp_plus_constant = sage_eval(f'w2*{str(d_var)}**w0+w1', locals={str(d_var):d_var, 'w0':w0, 'w1':w1, 'w2':w2})
-    coeff_exp_zero_plus_constant = sage_eval(f'w0*{str(d_var)}+w1', locals={str(d_var):d_var, 'w0':w0, 'w1':w1})
-    exp_zero_plus_constant = sage_eval(f'{str(d_var)}+w1', locals={str(d_var):d_var, 'w0':w0, 'w1':w1})
-
-    # Check for things like (a+b)*x^n and e^3*x^n
-    if type(polynomial) in [sage.symbolic.expression.Expression] and any(not(not op in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.rings.rational.Rational] and op.has(d_var)) and ('+' in str(op) or '**' in str(op) or '^' in str(op)) for op in polynomial.operands()):
-        import pdb
-        pdb.set_trace()
-        raise Exception(f"Format unknown, polynomial required for differentiation. \n{str(polynomial)}")
-
     # Check if polynomial is an int/float -> List of operands is just the
     # number
     if type(polynomial) in [int, float]:
-        list_of_operands = [polynomial]
-
+        list_of_operands = [[polynomial, 0]]
     # Check if polynomial is just an
     # Integer/RealLiteral since this is treated differently by sage
     # -> List of operands is just the Integer/RealLiteral
     elif type(polynomial) in [sage.rings.integer.Integer,
                            sage.rings.real_mpfr.RealLiteral, sage.rings.rational.Rational]:
-        list_of_operands = [polynomial]
-
+        list_of_operands = [[polynomial, 0]]
     # Check if it's just an exponent term without a power or coefficient
-    elif polynomial.is_symbol():
-    #type(polynomial) is sage.symbolic.expression.Expression and len(polynomial.operands()) == 0 and polynomial.has(d_var):
-        list_of_operands = [polynomial]
-
-    # Check if there is a coefficient times/to the power of x
-    # Note: Both 4*x and x^4 will produce the same output via
-    # polynomial.operands() i.e. [4, x]
-    # -> Pass as is and handle this on a higher level
-    elif type(polynomial) is sage.symbolic.expression.Expression and len(polynomial.operands()) == 2 and polynomial.has(d_var) and not ('-' in str(polynomial) or '+' in str(polynomial)):
-        list_of_operands = [polynomial]
-
-    # TODO to test. But if operands are at least 3 elements, this should be
-    # proper deriv term
-    elif ('+' in str(polynomial) or '-' in str(polynomial)) and type(polynomial) is sage.symbolic.expression.Expression and len(polynomial.operands()) > 2:
-        list_of_operands = polynomial.operands()
-
-    # See if the polynomial is of the general form "x^n + m"
-    elif len(polynomial.find(exp_plus_constant)) > 0 or len(polynomial.find(coeff_exp_plus_constant)) > 0 or len(polynomial.find(coeff_exp_zero_plus_constant)) > 0 or len(polynomial.find(exp_zero_plus_constant))> 0:
-        list_of_operands = polynomial.operands()
-    #elif type(polynomial) is sage.symbolic.expression.Expession and ((not '*' in str(polynomial) and '+' in str(polynomial)) or ('*' in str(polynomial) and '+' in str(polynomial))) and any('^' in str(op) for op in polynomial.operands()):
-    #    list_of_operands = polynomial.operands()
-
-    # Handles things of the form a*x^n which are not sums of deriv expressions
-    # which is handled above
-    # -> Pass as is and handle this on a higher level
-    elif type(polynomial) is sage.symbolic.expression.Expression and any(('^' in str(op) and op.has(d_var)) for op in polynomial.operands()) and len(polynomial.operands()) >= 2:
-        list_of_operands = [polynomial]
-
-    # Check if there are only coefficients of sage number types
-    # -> return as is and handle this on a higher level
-    elif type(polynomial) is sage.symbolic.expression.Expression and all(type(op) in [sage.rings.integer.Integer, sage.rings.real_mpfr.RealLiteral, sage.symbolic.expression.Expression, sage.rings.rational.Rational] for op in polynomial.operands()) and not any(op.has(d_var) for op in polynomial.operands()):
-        list_of_operands = [polynomial]
+    elif polynomial.is_symbol() and not polynomial.has(d_var):
+        list_of_operands = [[polynomial, 0]]
+    else:
+        try:
+            list_of_operands = polynomial.coefficients(d_var)
+        except:
+            print("Something is wrong, probably trying to call though type is not right")
+            import pdb
+            pdb.set_trace()
 
     if list_of_operands is None:
          print(type(polynomial))
@@ -246,6 +193,12 @@ def prepare_asym_deriv_dict(left_poly, right_poly, context, left_d_var=var('dx1'
     # Will be filled as follows: [[[var_left, var_right], d^left, d^right], ...]
     # [[[0, a], 1, 3], [[b, 17], 0, 0], [[c, d], 17, 42], ...]
     deriv_list = []
+    if var_dict is not None:
+        for var in var_dict:
+            if not hasattr(context, str(var)):
+                setattr(context,  str(var),
+                        torch.nn.Parameter(torch.tensor(float(1.)),
+                        requires_grad=True))
     left_iteration_list = extract_operand_list(left_poly, left_d_var, var_dict=var_dict)
     right_iteration_list = extract_operand_list(right_poly, right_d_var, var_dict=var_dict)
     left_right = itertools.product(left_iteration_list, right_iteration_list)
