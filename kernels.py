@@ -125,7 +125,7 @@ def single_term_extract(d_poly, context, d_var=var('d')):
                     torch.nn.Parameter(torch.tensor(float(1.)),
                     requires_grad=True))
     # It's of the form x^n or x
-    if int(sage_coefficient) == 1:
+    if sage_coefficient.is_numeric() and int(sage_coefficient) == 1:
         coeff.append(torch.tensor(float(1.)))
     # It's of the form a*b*...*x^n or a*b*...*x -> extract the coefficients
     elif not sage_coefficient.is_numeric() or not sage_coefficient.is_symbol() or not sage_coefficient.is_constant():
