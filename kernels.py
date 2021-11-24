@@ -129,7 +129,7 @@ def single_term_extract(d_poly, context, d_var=var('d')):
         coeff.append(torch.tensor(float(1.)))
     # It's of the form a*b*...*x^n or a*b*...*x -> extract the coefficients
     elif not sage_coefficient.is_numeric() or not sage_coefficient.is_symbol() or not sage_coefficient.is_constant():
-        coeff = [extract_coefficient_recursively(sage_coefficient, context, var_dict)]
+        coeff = [extract_coefficient_recursively(sage_coefficient, context)]
     # Check if d_poly is just a variable/number
     else:
         if sage_coefficient.is_numeric() or sage_coefficient.is_constant():
