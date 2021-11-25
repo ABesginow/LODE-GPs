@@ -1,6 +1,5 @@
 import itertools
 from itertools import zip_longest
-import torch
 from torch.distributions import constraints
 import torch
 from functools import reduce
@@ -8,8 +7,6 @@ import gpytorch
 from gpytorch.lazy import *
 from gpytorch.lazy.non_lazy_tensor import  lazify
 from gpytorch.kernels.kernel import Kernel
-from pyro.nn.module import PyroParam
-from pyro.nn.module import PyroModule
 from sage.all import *
 import sage
 #https://ask.sagemath.org/question/41204/getting-my-own-module-to-work-in-sage/
@@ -840,8 +837,6 @@ class MatrixKernel(Kernel):
                 print(eigs.imag)
                 #assert "Not all Eigenvalues positive"
         #print(result.eig())
-        import pdb
-        pdb.set_trace()
         return result
 
     def num_outputs_per_input(self, x1, x2):
