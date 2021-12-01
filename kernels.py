@@ -567,15 +567,23 @@ class diffed_SE_kernel(Kernel):
                     l_exp = summand[2]
                     coeff = summand[1]
                     poly_coeffs = summand[0]
+
                     if any(callable(p_coeff) and not type(p_coeff) in [sage.symbolic.expression.Expression] for p_coeff in poly_coeffs):
                         poly_coeffs = [p_coeff if not callable(p_coeff) else p_coeff() for p_coeff in poly_coeffs]
+                    prod_coefficient = None
+                    for c in poly_coeffs:
+                        if prod_coefficient is None:
+                            prod_coefficient = c
+                        else:
+                            prod_coefficient = prod_coefficient * c
+
                     if result is None:
-                        temp = coeff*(l_**l_exp)*(self.K_0**K_0_exp)*torch.prod(torch.Tensor(poly_coeffs))
+                        temp = coeff*(l_**l_exp)*(self.K_0**K_0_exp)*prod_coefficient
                         result = temp
                     else:
                         #int(degr_o+degr_p) if int(degr_o+degr_p)%2 == 0 else int(degr_o+degr_p-1)
                         #TODO: This as well
-                        temp = coeff*(l_**l_exp)*(self.K_0**K_0_exp)*torch.prod(torch.Tensor(poly_coeffs))
+                        temp = coeff*(l_**l_exp)*(self.K_0**K_0_exp)*prod_coefficient
                         result += temp
             return self.K_4*result
 
