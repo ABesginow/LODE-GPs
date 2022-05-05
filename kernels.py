@@ -827,8 +827,6 @@ class MatrixKernel(Kernel):
                     temp = torch.hstack([delazify(temp), delazify(result1)])
 
             # append vertically
-            import pdb
-            pdb.set_trace()
             if result is None:
                 result = temp
             else:
