@@ -434,7 +434,7 @@ class diffed_exp_kernel(Kernel):
                 raise ValueError("Inputs must have the same number of features.")
             result = None
             x1_plus_x2 = x1+x2.t()
-            exp_of_add = torch.exp(x1_plus_x2)
+            exp_of_add = torch.exp(self.exp_coeff * x1_plus_x2)
             # TODO this can probably be written even fasterby adding the
             # elements instead of looping over them
             for summand in self.derivation_coefficients_list:
@@ -820,6 +820,9 @@ class MatrixKernel(Kernel):
                     result1 = zero_matrix
                 else:
                     result1 = kernel.forward(x1, x2)
+                    if result1.evaluate() < -1:
+                        import pdb
+                        pdb.set_trace()
                 if temp is None:
                     temp = result1
                 else:
