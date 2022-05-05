@@ -757,7 +757,7 @@ class MatrixKernel(Kernel):
                         #if not hasattr(self, kernel) and (kernel is None or kernel == 0):
                         setattr(self, f'kernel_{i}{j}', kernel)
                         self.base_kernels.append(getattr(self, f"kernel_{i}{j}"))
-            print(f"List of all kernels: {self.base_kernels}")
+            #print(f"List of all kernels: {self.base_kernels}")
 
     def __str__(self):
         string = ""
@@ -810,10 +810,12 @@ class MatrixKernel(Kernel):
         result = None
         for i, row in enumerate(self.matrix) :
             temp = None
+            zero_filled = False
             for j, kernel in enumerate(row[i:]):
             # Create the result matrix
-                if j < i:
+                if j < i and not zero_filled:
                     temp = torch.hstack([zero_matrix for p in range(i-j)])
+                    zero_filled = True
                 if kernel is None or kernel == 0:
                     result1 = zero_matrix
                 else:
@@ -825,6 +827,8 @@ class MatrixKernel(Kernel):
                     temp = torch.hstack([delazify(temp), delazify(result1)])
 
             # append vertically
+            import pdb
+            pdb.set_trace()
             if result is None:
                 result = temp
             else:
@@ -863,10 +867,10 @@ class DiffMatrixKernel(MatrixKernel):
         result_kernel = None
         # https://stackoverflow.com/questions/6473679/transpose-list-
         # of-lists
-        print("left")
-        print(L)
-        print("right")
-        print(R)
+        #print("left")
+        #print(L)
+        #print("right")
+        #print(R)
         M_transpose = list(
            map(list, itertools.zip_longest(*M, fillvalue=None)))
         # Every row in 'M' is combined with each elem of the row given in 'R'
@@ -895,8 +899,8 @@ class DiffMatrixKernel(MatrixKernel):
                         #    result_kernel += context.named_kernels[index]
                 else:
                     pass
-        print("Result kernel")
-        print(result_kernel)
+        #print("Result kernel")
+        #print(result_kernel)
         return result_kernel
 
     def diff(self, left_matrix=None, right_matrix=None, var_dict=None):
@@ -905,10 +909,10 @@ class DiffMatrixKernel(MatrixKernel):
         kernel = MatrixKernel(None)
         output_matrix = [[0 for i in range(np.shape(self.matrix)[1])] for j in range(np.shape(self.matrix)[0])]
         for i, (l, r) in enumerate(itertools.product(left_matrix.rows(), right_matrix.columns())):
-            print(f"i\n{i}")
+            #print(f"i\n{i}")
             res = self.calc_cell_diff(l, self.matrix, r, context=kernel, var_dict=var_dict)
             output_matrix[int(i/np.shape(self.matrix)[0])][
                         int(i % np.shape(self.matrix)[0])]  = res
         kernel.set_matrix(output_matrix)
-        print(output_matrix)
+        #print(output_matrix)
         return kernel
