@@ -820,9 +820,6 @@ class MatrixKernel(Kernel):
                     result1 = zero_matrix
                 else:
                     result1 = kernel.forward(x1, x2)
-                    if result1.evaluate() < -1:
-                        import pdb
-                        pdb.set_trace()
                 if temp is None:
                     temp = result1
                 else:
