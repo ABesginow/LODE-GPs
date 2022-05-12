@@ -15,7 +15,7 @@ from sage.arith.misc import factorial
 import numpy as np
 import pdb
 from gpytorch.constraints import Positive
-
+import random
 torch_operations = {'mul': torch.mul, 'add': torch.add,
                     'pow': torch.pow, 'exp':torch.exp,
                     'sin':torch.sin, 'cos':torch.cos,
@@ -600,8 +600,8 @@ class Diff_SE_kernel(Kernel):
     def __init__(self,  var=None, length=None, active_dims=None, variance_constraint=None, lengthscale_constraint=None, lengthscale_prior=None):
         super().__init__(active_dims=active_dims)
         self.is_diffable = True
-        self.register_parameter(name="var", parameter=torch.nn.Parameter(torch.tensor(float(var)) if not var is None else torch.tensor(float(1.)), requires_grad=True))
-        self.register_parameter(name="length", parameter=torch.nn.Parameter(torch.tensor(float(length)) if not length is None else torch.tensor(float(1.)), requires_grad=True))
+        self.register_parameter(name="var", parameter=torch.nn.Parameter(torch.tensor(float(var)) if not var is None else torch.tensor(random.uniform(-3, 3)), requires_grad=True))
+        self.register_parameter(name="length", parameter=torch.nn.Parameter(torch.tensor(float(length)) if not length is None else torch.tensor(random.uniform(-3, 3)), requires_grad=True))
         self.K_0 = None
         self.K_1 = None
         self.K_4 = None
