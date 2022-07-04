@@ -835,7 +835,7 @@ class MatrixKernel(Kernel):
                 #result = CatLazyTensor(*[result, temp], dim=1)
                 result = torch.vstack([delazify(result), delazify(temp)])
        # print(f"Result:\n{result}")
-        result = make_symmetric(result)
+        result = torch.where(result > 0, result, result.T.tril(diagonal=-1))
        # print(f"Symmetric result:\n{result}")
         result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
        # print(f"Interleaved result:\n{result}")
