@@ -808,25 +808,27 @@ class MatrixKernel(Kernel):
         zero_matrix = torch.zeros(H_x, H_z)
         #zero_matrix = torch.tensor([[int(0) for i in range(H_z)] for j in range(H_x)])
         result = None
+        ver_list = []
         for i, row in enumerate(self.matrix) :
             temp = None
             zero_filled = False
+            hor_list = []
             for j, kernel in enumerate(row[i:]):
-            # Create the result matrix
+            # Create the vertical results
                 if j < i and not zero_filled:
-                    temp = torch.hstack([zero_matrix for p in range(i-j)])
+                    hor_list = [zero_matrix for p in range(i-j)]
                     zero_filled = True
                 if kernel is None or kernel == 0:
                     result1 = zero_matrix
                 else:
                     result1 = kernel.forward(x1, x2)
-                if temp is None:
-                    temp = result1
-                else:
+                hor_list.append(delazify(result1))
                     #temp = CatLazyTensor(*[temp, result1])
-                    temp = torch.hstack([delazify(temp), delazify(result1)])
-
+            # View dimensions: (cov_dim, cov_dim * number of data)
+            row_cov_matr = torch.stack(hor_list, dim=2).view(H_x,self.num_outputs_per_input(x1, x2)*H_z)
+            ver_list.append(row_cov_matr)
             # append vertically
+
             if result is None:
                 result = temp
             else:
@@ -834,10 +836,11 @@ class MatrixKernel(Kernel):
                 # rewrite everything to use CatLazyTensors and lazy Tensors
                 #result = CatLazyTensor(*[result, temp], dim=1)
                 result = torch.vstack([delazify(result), delazify(temp)])
+        # view dimensions: (cov_dim * number of data, cov_dim * number of data)
+        result = torch.stack(ver_list, dim=1).view((self.num_outputs_per_input(x1, x2)*H_x,self.num_outputs_per_input(x1, x2)*H_x))
        # print(f"Result:\n{result}")
-        result = torch.where(result > 0, result, result.T.tril(diagonal=-1))
+        result = torch.where(result > 0, result, result.T)
        # print(f"Symmetric result:\n{result}")
-        result = torch.vstack([torch.hstack([result[k::H_x, l::H_x] for l in range(H_x)]) for k in range(H_x)])
        # print(f"Interleaved result:\n{result}")
         DEBG = False
         if DEBG:
