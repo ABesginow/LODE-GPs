@@ -161,8 +161,6 @@ class TestKernel(unittest.TestCase):
         left_poly = 42*a*dx1**3
         right_poly = 1
         result = prepare_asym_deriv_dict(left_poly, right_poly, context, var_dict = var_dict)
-        import pdb
-        pdb.set_trace()
         # Result should be [[[42, a, 1], 3, 0]]
         self.assertIsInstance(result[0][0][0], types.FunctionType, "Creation of the lambda definitely failed")
         self.assertEqual(result[0][0][1], 1, "Second coefficient is wrong")
@@ -182,7 +180,6 @@ class TestKernel(unittest.TestCase):
         left_poly = 2*dx1 - 2
         right_poly = 2*dx2 - 2
         import pdb
-        pdb.set_trace()
         result = prepare_asym_deriv_dict(left_poly, right_poly, context, var_dict = var_dict)
         # Result should be [[[tensor(2.), tensor(2.)], 1, 1],[[tensor(-2.), tensor(2.)], 0, 1],[[tensor(2.), tensor(-2.)], 1, 0],[[tensor(-2.), tensor(-2.)], 0, 0]]
 
