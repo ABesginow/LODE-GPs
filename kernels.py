@@ -1,3 +1,6 @@
+import copy as cp
+from einops import rearrange
+import re
 import itertools
 from itertools import zip_longest
 from torch.distributions import constraints
@@ -23,6 +26,160 @@ torch_operations = {'mul': torch.mul, 'add': torch.add,
 
 
 DEBUG =False
+
+
+def create_kernel_matrix_from_diagonal(D):
+    t1, t2 = var("t1, t2")
+    translation_dictionary = dict()
+    param_dict = torch.nn.ParameterDict()
+    sage_covariance_matrix = [[0 for cell in range(max(len(D.rows()), len(D.columns())))] for row in range(max(len(D.rows()), len(D.columns())))]
+    for i in range(max(len(D.rows()), len(D.columns()))):
+        if i > len(D.diagonal())-1:
+            entry = 0
+        else:
+            entry = D[i][i]
+        var(f"LODEGP_kernel_{i}")
+        if entry == 0:
+            param_dict[f"signal_variance_{i}"] = torch.nn.Parameter(torch.tensor(float(1.)))
+            param_dict[f"lengthscale_{i}"] = torch.nn.Parameter(torch.tensor(float(1.)))
+            # Create an SE kernel
+            var(f"signal_variance_{i}")
+            var(f"lengthscale_{i}")
+            translation_dictionary[f"LODEGP_kernel_{i}"] = globals()[f"signal_variance_{i}"]**2 * exp(-0.5*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
+        elif entry == 1:
+            translation_dictionary[f"LODEGP_kernel_{i}"] = 0 
+        else:
+            kernel_translation_kernel = 0
+            roots = entry.roots(ring=CC)
+            roots_copy = cp.deepcopy(roots)
+            for root in roots:
+                # Complex root, i.e. sinusoidal exponential
+                #if root[0].is_complex():
+                if root[0].is_imaginary():
+                    # Check to prevent conjugates creating additional kernels
+                    if not root[0].conjugate() in [r[0] for r in roots_copy]:
+                        continue
+
+                    # If it doesn't exist then it's new so find and pop the complex conjugate of the current root
+                    roots_copy.remove((root[0].conjugate(), root[1]))
+                    roots_copy.remove(root)
+
+                    # Create sinusoidal kernel
+                    var("exponent_runner")
+                    kernel_translation_kernel += sum(t1**globals()["exponent_runner"] * t2**globals()["exponent_runner"], globals()["exponent_runner"], 0, root[1]-1) *\
+                                                    exp(root[0].real()*(t1 + t2)) * cos(root[0].imag()*(t1-t2))
+                else:
+                    var("exponent_runner")
+                    # Create the exponential kernel functions
+                    kernel_translation_kernel += sum(t1**globals()["exponent_runner"] * t2**globals()["exponent_runner"], globals()["exponent_runner"], 0, root[1]-1) * exp(root[0]*(t1+t2))
+            translation_dictionary[f"LODEGP_kernel_{i}"] = kernel_translation_kernel 
+        sage_covariance_matrix[i][i] = globals()[f"LODEGP_kernel_{i}"]
+    return sage_covariance_matrix, translation_dictionary, param_dict
+
+
+def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary):
+    """
+    This code takes the sage covariance matrix and differentiation matrices
+    and returns a list of lists containing the results of the `compile` 
+    commands that calculate the respective cov. fct. entry
+    """
+    sage_multiplication_kernel_matrix = matrix(K.base_ring(), len(K[0]), len(K[0]), (V*K*Vt))
+    final_kernel_matrix = [[None for i in range(len(K[0]))] for j in range(len(K[0]))]
+    for i, row in  enumerate(sage_multiplication_kernel_matrix):
+        for j, cell in enumerate(row):
+            cell_expression = 0
+            diff_dictionary = cell.dict()
+            for summand in diff_dictionary:
+                temp_cell_expression = mul([K[i][i] for i, multiplicant in enumerate(summand[3:]) if multiplicant > 0])
+                for kernel_translation in kernel_translation_dictionary:
+                    if kernel_translation in str(temp_cell_expression):
+                        temp_cell_expression = SR(temp_cell_expression)
+                        #cell = cell.factor()
+                        #replace
+                        temp_cell_expression = temp_cell_expression.substitute(globals()[kernel_translation]==kernel_translation_dictionary[kernel_translation])
+
+                # And now that everything is replaced: diff that bad boy!
+                cell_expression += diff_dictionary[summand]*SR(temp_cell_expression).diff(t1, summand[1]).diff(t2, summand[2])
+            final_kernel_matrix[i][j] = cell_expression
+    return final_kernel_matrix 
+
+
+def replace_sum_and_diff(kernelmatrix, sumname="t_sum", diffname="t_diff"):
+    result_kernel_matrix = cp.deepcopy(kernelmatrix)
+    var(sumname, diffname)
+    for i, row in enumerate(kernelmatrix):
+        for j, cell in enumerate(row):
+            result_kernel_matrix[i][j] = cell.substitute({t1-t2:globals()[diffname], t1+t2:globals()[sumname]})
+    return result_kernel_matrix
+
+
+def replace_basic_operations(kernel_string):
+    # Define the regex replacement rules for the text
+    regex_replacements_multi_group = {
+        "exp" : [r'(e\^)\((([^()]*|\(([^()]*|\([^()]*\))*\))*)\)', "torch.exp"],
+        "exp_singular" : [r'(e\^)([0-9a-zA-Z_]*)', "torch.exp"]
+    }
+    regex_replacements_single_group = {
+        "sin" : [r'sin', "torch.sin"],
+        "cos" : [r'cos', "torch.cos"],
+        "pow" : [r'\^', "**"]
+    }
+    for replace_term in regex_replacements_multi_group:
+        m = re.search(regex_replacements_multi_group[replace_term][0], kernel_string)
+        if not m is None:
+            # There is a second group, i.e. we have exp(something)
+            kernel_string = re.sub(regex_replacements_multi_group[replace_term][0], f'{regex_replacements_multi_group[replace_term][1]}'+r"(\2)", kernel_string)
+    for replace_term in regex_replacements_single_group:
+        m = re.search(regex_replacements_single_group[replace_term][0], kernel_string)
+        if not m is None:
+            kernel_string = re.sub(regex_replacements_single_group[replace_term][0], f'{regex_replacements_single_group[replace_term][1]}', kernel_string)
+
+    return kernel_string 
+
+
+def replace_parameters(kernel_string, model_parameters, common_terms = []):
+    regex_replace_string = r"(^|[\*\+\/\(\)\-\s])(REPLACE)([\*\+\/\(\)\-\s]|$)"
+    
+    for term in common_terms:
+        if term in kernel_string:
+            kernel_string = re.sub(regex_replace_string.replace("REPLACE", term), r"\1" + f"common_terms[\"{term}\"]" + r"\3", kernel_string)
+
+    for model_param in model_parameters:
+        kernel_string = re.sub(regex_replace_string.replace("REPLACE", model_param), r"\1"+f"model_parameters[\"{model_param}\"]"+r"\3", kernel_string)
+
+    return kernel_string 
+
+
+def verify_sage_entry(kernel_string, local_vars):
+    # This is a call to willingly produce an error if the string is not originally coming from sage
+    try:
+        kernel_string = kernel_string.simplify()
+        kernel_string = str(kernel_string)
+        sage_eval(kernel_string, locals = local_vars)
+    except Exception as E:
+        raise Exception(f"The string was not safe and has not been used to construct the Kernel.\nPlease ensure that only valid operations are part of the kernel and all variables have been declared.\nYour kernel string was:\n'{kernel_string}'")
+
+
+def translate_kernel_matrix_to_gpytorch_kernel(kernelmatrix, paramdict, common_terms=[]):
+    kernel_call_matrix = [[] for i in range(len(kernelmatrix))]
+    for rownum, row in enumerate(kernelmatrix):
+        for colnum, cell in enumerate(row):
+            # First thing I do: Verify that the entry is a valid sage command
+            local_vars = {str(v):v for v in SR(cell).variables()}
+            verify_sage_entry(cell, local_vars)
+            # Now translate the cell to a call
+            replaced_op_cell = replace_basic_operations(str(cell))
+            replaced_var_cell = replace_parameters(replaced_op_cell, paramdict, common_terms)
+            kernel_call_matrix[rownum].append(compile(replaced_var_cell, "", "eval"))
+
+
+
+    return kernel_call_matrix
+
+
+
+
+
 def make_symmetric(matrix):
     # matrix can either be list or torch.Tensor
     if not type(matrix) in [torch.Tensor, list]:
