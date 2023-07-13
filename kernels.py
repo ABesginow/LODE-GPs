@@ -45,7 +45,7 @@ def create_kernel_matrix_from_diagonal(D):
             # Create an SE kernel
             var(f"signal_variance_{i}")
             var(f"lengthscale_{i}")
-            translation_dictionary[f"LODEGP_kernel_{i}"] = exp(globals()[f"signal_variance_{i}"])**2 * exp(-0.5*(t1-t2)**2/exp(globals()[f"lengthscale_{i}"])**2)
+            translation_dictionary[f"LODEGP_kernel_{i}"] = globals()[f"signal_variance_{i}"]**2 * exp(-0.5*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
         elif entry == 1:
             translation_dictionary[f"LODEGP_kernel_{i}"] = 0 
         else:
@@ -660,7 +660,7 @@ class diffed_SE_kernel(Kernel):
             for i, summand in enumerate(self.derivation_coefficients_list):
                 for j, op in enumerate(summand):
                     coeff_string += f" > Summand {i}, entry {j}:\npolynom coefficients:{str(op[0])}\nderivation coefficient:{op[1]}\nl exponent:{op[2]}\n(x1-x2) exponent:{op[-1]}\n"
-            string = f"_diffed_SE_kernel_\nReceived derivation form: {self.derivation_term_dict}\nResulting list (including parameters):\n{coeff_string}"
+            string = f"_diffed_SE_kernel_\nReceived derivation form: {self.derivation_term_dict}\nResulting list (including parameters):\n{coeff_string}"
             return string
 
         def _slice_input(self, X):
