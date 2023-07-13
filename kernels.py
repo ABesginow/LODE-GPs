@@ -45,7 +45,7 @@ def create_kernel_matrix_from_diagonal(D):
             # Create an SE kernel
             var(f"signal_variance_{i}")
             var(f"lengthscale_{i}")
-            translation_dictionary[f"LODEGP_kernel_{i}"] = globals()[f"signal_variance_{i}"]**2 * exp(-0.5*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
+            translation_dictionary[f"LODEGP_kernel_{i}"] = exp(globals()[f"signal_variance_{i}"])**2 * exp(-0.5*(t1-t2)**2/exp(globals()[f"lengthscale_{i}"])**2)
         elif entry == 1:
             translation_dictionary[f"LODEGP_kernel_{i}"] = 0 
         else:
@@ -145,7 +145,7 @@ def replace_parameters(kernel_string, model_parameters, common_terms = []):
             kernel_string = re.sub(regex_replace_string.replace("REPLACE", term), r"\1" + f"common_terms[\"{term}\"]" + r"\3", kernel_string)
 
     for model_param in model_parameters:
-        kernel_string = re.sub(regex_replace_string.replace("REPLACE", model_param), r"\1"+f"model_parameters[\"{model_param}\"]"+r"\3", kernel_string)
+        kernel_string = re.sub(regex_replace_string.replace("REPLACE", model_param), r"\1"+f"torch.exp(model_parameters[\"{model_param}\"])"+r"\3", kernel_string)
 
     return kernel_string 
 
