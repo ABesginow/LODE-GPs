@@ -8,7 +8,7 @@ from kernels import *
 import pprint
 import time
 import torch
-import einops
+import matplotlib.pyplot as plt
 
 
 class LODEGP(gpytorch.models.ExactGP):
@@ -20,6 +20,7 @@ class LODEGP(gpytorch.models.ExactGP):
         R = QQ['x']; (x,) = R._first_ngens(1)
         A = matrix(R, Integer(2), Integer(3), [x, -x**2+x-1, x-2, 2-x, x**2-x-1, -x])
         D, U, V = A.smith_form()
+        print(f"D:{D}")
         print(f"V:{V}")
         Vt = V.transpose()
         kernel_matrix, self.kernel_translation_dict, parameter_dict = create_kernel_matrix_from_diagonal(D)
@@ -97,9 +98,9 @@ torch.set_default_tensor_type(torch.DoubleTensor)
 
 num_data = 15
 train_x = torch.linspace(0, 15, num_data)
-one = torch.sin(train_x)
-two = torch.cos(train_x)
-three = -torch.sin(train_x)
+one = -0.25*torch.exp(train_x) + 2*(torch.cos(train_x) + torch.sin(train_x)) 
+two = 4*torch.sin(train_x) 
+three = -0.25*torch.exp(train_x) + 2*(torch.cos(train_x) - torch.sin(train_x)) 
 train_y = torch.stack((one, two, three), -1)
 likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(3)
 start = time.time()
@@ -107,6 +108,25 @@ model = LODEGP(train_x, train_y, likelihood, 3)
 end = time.time()
 model(train_x)
 
+# Find optimal model hyperparameters
+model.train()
+likelihood.train()
+
+training_iterations = 50
+# Use the adam optimizer
+optimizer = torch.optim.Adam(model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
+
+# "Loss" for GPs - the marginal log likelihood
+mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+print(list(model.named_parameters()))
+for i in range(training_iterations):
+    optimizer.zero_grad()
+    output = model(train_x)
+    loss = -mll(output, train_y)
+    loss.backward()
+    print('Iter %d/%d - Loss: %.3f' % (i + 1, training_iterations, loss.item()))
+    optimizer.step()
+print(list(model.named_parameters()))
 test_x = torch.linspace(0, 1, 10)
 model.eval()
 likelihood.eval()
