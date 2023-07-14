@@ -28,6 +28,40 @@ torch_operations = {'mul': torch.mul, 'add': torch.add,
 DEBUG =False
 
 
+class LODE_Kernel(Kernel):
+        def __init__(self, covar_description, model_parameters, active_dims=None):
+            super(LODE_Kernel, self).__init__(active_dims=active_dims)
+            self.covar_description = covar_description
+            self.model_parameters = model_parameters
+            self.num_tasks = len(covar_description)
+
+        def num_outputs_per_input(self, x1, x2):
+            """
+            Given `n` data points `x1` and `m` datapoints `x2`, this multitask
+            kernel returns an `(n*num_tasks) x (m*num_tasks)` covariance matrix.
+            """
+            return self.num_tasks
+
+        #def forward(self, X, Z=None, common_terms=None):
+        def forward(self, x1, x2, diag=False, **params):
+            common_terms = params["common_terms"]
+            model_parameters = self.model_parameters
+            if not x2 is None:
+                common_terms["t_diff"] = x1-x2.t()
+                common_terms["t_sum"] = x1+x2.t()
+            K_list = list() 
+            for rownum, row in enumerate(self.covar_description):
+                for cell in row:
+                    K_list.append(eval(cell))
+            kernel_count = len(self.covar_description)
+            # from https://discuss.pytorch.org/t/how-to-interleave-two-tensors-along-certain-dimension/11332/6
+            #if K_list[0].ndim == 1:
+            #    K_list = [kk.unsqueeze(1) for kk in K_list]
+            K = einops.rearrange(K_list, '(t1 t2) h w -> (h t2) (w t1)', t1=kernel_count, t2=kernel_count)  
+
+            return K 
+
+
 def create_kernel_matrix_from_diagonal(D):
     t1, t2 = var("t1, t2")
     translation_dictionary = dict()
