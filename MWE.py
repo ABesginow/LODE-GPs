@@ -20,6 +20,7 @@ class LODEGP(gpytorch.models.ExactGP):
         R = QQ['x']; (x,) = R._first_ngens(1)
         A = matrix(R, Integer(2), Integer(3), [x, -x**2+x-1, x-2, 2-x, x**2-x-1, -x])
         D, U, V = A.smith_form()
+        print(f"V:{V}")
         Vt = V.transpose()
         kernel_matrix, self.kernel_translation_dict, parameter_dict = create_kernel_matrix_from_diagonal(D)
         self.kernelsize = len(kernel_matrix)
