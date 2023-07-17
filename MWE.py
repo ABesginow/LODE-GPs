@@ -10,6 +10,26 @@ import time
 import torch
 import matplotlib.pyplot as plt
 
+def calc_finite_differences(sample, point_step_size, skip=False, number_of_samples=0):
+    """
+    param skip: Decides whether to skip every second value of the sample.
+                Useful for cases where original samples aren't equidistant
+    """
+    if sample.ndim == 2:
+        NUM_CHANNELS = sample.shape[1]
+    else:
+        NUM_CHANNELS = 1
+    if number_of_samples == 0:
+        number_of_samples = sample.shape[0]
+
+    gradients_list = list()
+    if skip:
+        step = 2
+    for index in range(0, step*number_of_samples, step):
+        gradients_list.append(list((-sample[index] + sample[index+1])/point_step_size))
+    return gradients_list
+
+
 
 class LODEGP(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood, num_tasks):
@@ -159,53 +179,112 @@ print(list(model.named_parameters()))
 
 test_start = 0
 test_end = 1
-test_count = 10
+test_count = 40
+second_derivative = False
+eval_step_size = 1e-4
+divider = 2
+number_of_samples = int(test_count/divider)
+
 test_x = torch.linspace(test_start, test_end, test_count)
+if second_derivative:
+    test_x = torch.cat([test_x, test_x+torch.tensor(eval_step_size), test_x+torch.tensor(2*eval_step_size)])
+else:
+    test_x = torch.cat([test_x, test_x+torch.tensor(eval_step_size)])
+test_x = test_x.sort()[0]
+
 model.eval()
 likelihood.eval()
 
 #output = model(test_x)
-output = likelihood(model(test_x))
-print(output.mean)
+with torch.no_grad():
+    output = likelihood(model(test_x))
 # ODE solution precision evaluation
 # Idea: Generate splines based on the mean/samples from the GP
 # The sagemath spline function can be directly differentiated (up to grade 2)
 
 # Then it's up to the user to manually write down the differential equation again 
 # and sum up the (absolute) error terms
+sample_repititions = 1
+all_samples = list()
+for sample_rep in range(sample_repititions):
+    sample_result = {}
+    sample = output.mean
+    #with gpytorch.settings.fast_pred_var():
+    #    sample = outputs.sample()
 
-fkt = list()
-for dimension in range(model.kernelsize):
-    output_channel = output.mean[:, dimension]
-    fkt.append(spline([(t, y) for t, y in zip(test_x, output_channel)]))
+    dgl1_difference = []
+    dgl2_difference = []
+    dgl3_difference = []
+    c1_fin_diff = []
+    c2_fin_diff = []
+    c1_fin_d2 = []
+    c2_fin_d2 = []
+
+    import scipy.signal
+    b, a = scipy.signal.butter(3, 0.05, "lowpass")
+
+    if not second_derivative:
+        s1_s2_fin_diffs = calc_finite_differences(sample, eval_step_size, skip=True, number_of_samples=number_of_samples)
+    else:
+        s1_s2_fin_diffs = calc_finite_differences(s1_s2, eval_step_size, skip=True, number_of_samples=number_of_samples)
+        s2_s3_fin_diffs = calc_finite_differences(s2_s3, eval_step_size, skip=True, number_of_samples=number_of_samples)
+
+    # To calculate the second derivatives, I just need to calculate the finite differences
+    # of the first derivatives I have, then I have the second derivative for the point in
+    # the middle of them
+
+    # This smoothing block is stored in case I ever need it (e.g. if decreasing the step size too much)
+
+    s1_s2_fin_diff_smooth_c1 = scipy.signal.filtfilt(b, a, np.array(s1_s2_fin_diffs)[:,0])
+    s1_s2_fin_diff_smooth_c2 = scipy.signal.filtfilt(b, a, np.array(s1_s2_fin_diffs)[:,1])
+    s1_s2_fin_diff_smooth_c3 = scipy.signal.filtfilt(b, a, np.array(s1_s2_fin_diffs)[:,2])
+    s1_s2_fin_diffs_smooth = [[c1, c2, c3] for c1, c2, c3 in zip(s1_s2_fin_diff_smooth_c1, s1_s2_fin_diff_smooth_c2, s1_s2_fin_diff_smooth_c3)]
+
+    if second_derivative:
+        s2_s3_fin_diff_smooth_c1 = scipy.signal.filtfilt(b, a, np.array(s2_s3_fin_diffs)[:,0])
+        s2_s3_fin_diff_smooth_c2 = scipy.signal.filtfilt(b, a, np.array(s2_s3_fin_diffs)[:,1])
+        s2_s3_fin_diff_smooth_c3 = scipy.signal.filtfilt(b, a, np.array(s2_s3_fin_diffs)[:,2])
+        s2_s3_fin_diffs_smooth = [[c1, c2, c3] for c1, c2, c3 in zip(s2_s3_fin_diff_smooth_c1, s2_s3_fin_diff_smooth_c2, s2_s3_fin_diff_smooth_c3)]
 
 
-#ode_test_vals = np.linspace(test_start, test_end, 10)
-ode_test_vals = test_x
+    import itertools
+    # Same as above
+    #first_deriv_interleaved_smooth = torch.Tensor(list(itertools.chain(*zip(s1_s2_fin_diffs_smooth, s2_s3_fin_diffs_smooth))))
+    #first_deriv_interleaved = torch.Tensor(list(itertools.chain(*zip(s1_s2_fin_diffs, s2_s3_fin_diffs))))
+    #s2_fin_d2 = experiment.calc_finite_differences(first_deriv_interleaved, eval_step_size, skip=True, number_of_samples=number_of_samples)
 
-# System 1 (no idea)
-#A = matrix(R, Integer(2), Integer(3), [x, -x**2+x-1, x-2, 2-x, x**2-x-1, -x])
-#ode1 = lambda val: fkt[0].derivative(val, 1) - fkt[1].derivative(val, 2) + fkt[1].derivative(val, 1) - fkt[1](val) + fkt[2].derivative(val, 1) - fkt[2](val)
-#ode2 = lambda val: 2*fkt[0](val) - fkt[0].derivative(val, 1) + fkt[1].derivative(val, 2) - fkt[1].derivative(val, 1) - fkt[1](val) - fkt[2].derivative(val, 1)
+    # Same as above
+    #s2_fin_d2_smooth_c1 = scipy.signal.filtfilt(b, a, np.array(s2_fin_d2)[:,0])
+    #s2_fin_d2_smooth_c2 = scipy.signal.filtfilt(b, a, np.array(s2_fin_d2)[:,1])
+    #s2_fin_d2_smooth_c3 = scipy.signal.filtfilt(b, a, np.array(s2_fin_d2)[:,2])
+    #s2_fin_d2_smooth = [[c1, c2, c3] for c1, c2, c3 in zip(s2_fin_d2_smooth_c1, s2_fin_d2_smooth_c2, s2_fin_d2_smooth_c3)]
 
-# Heating system with parameters
-#A = matrix(R, Integer(2), Integer(3), [])
+    for index in range(number_of_samples):
+        c1 = sample[index*divider+1][0]
+        c2 = sample[index*divider+1][1]
+        c3 = sample[index*divider+1][2]
+        c4 = sample[index*divider+1][3]
+        c5 = sample[index*divider+1][4]
 
-# Linearized bipendulum
-#A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1, 0, x**2+4.905, -1])
+        #A = matrix(R, 2, 3,  [x^2+9.81, 0, -1, 0, x^2+4.9, -1/2])
 
-# 3 Tank system (5 dimensional uncontrollable system)
-#A = matrix(R, Integer(3), Integer(5), [-x, 0, 0, 1, 0| 0, -x, 0, 1, 1| 0, 0, -x, 0, 1])
-ode1 = lambda val: -fkt[0].derivative(val, 1) + fkt[3](val)
-ode2 = lambda val: -fkt[1].derivative(val, 1) + fkt[3](val) + fkt[4](val)
-ode3 = lambda val: -fkt[2].derivative(val, 1) + fkt[4](val)
+        # Check the error in solving the first differential equation
+        dgl1_diff = abs(-s1_s2_fin_diffs[index][0]+c4)
+        dgl1_difference.append(dgl1_diff)
 
-ode_error_list = [[] for _ in range(model.ode_count)]
-for val in ode_test_vals:
-    for i in range(model.ode_count):
-        ode_error_list[i].append(globals()[f"ode{i+1}"](val))
+        # Check the error in solving the second differential equation
+        dgl2_diff = abs(-s1_s2_fin_diffs[index][1]+c4 +c5)
+        dgl2_difference.append(dgl2_diff)
 
-print(np.mean(ode_error_list[0]))
-print(np.mean(ode_error_list[1]))
-print(np.mean(ode_error_list[2]))
-print(np.mean(ode_error_list))
+        dgl3_diff = abs(-s1_s2_fin_diffs[index][2]+c5)
+        dgl3_difference.append(dgl3_diff)
+
+    #experiment.print_log(f"model sample avg. error c1:{torch.mean(torch.Tensor(dgl1_difference))}")
+    #experiment.print_log(f"model sample avg. error c2:{torch.mean(torch.Tensor(dgl2_difference))}")
+    sample_result["avg_dgl_error"] = 0.333*(np.mean(dgl1_difference) + np.mean(dgl2_difference) + np.mean(dgl3_difference))
+    sample_result["dgl1_difference"] = dgl1_difference
+    sample_result["dgl2_difference"] = dgl2_difference
+    sample_result["dgl3_difference"] = dgl3_difference
+    all_samples.append([np.mean(dgl1_difference), np.mean(dgl2_difference), np.mean(dgl3_difference)])
+    print(sample_result)
+    print(all_samples)
