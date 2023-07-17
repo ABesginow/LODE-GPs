@@ -178,10 +178,10 @@ for i in range(training_iterations):
 print(list(model.named_parameters()))
 
 test_start = 0
-test_end = 1
-test_count = 40
+test_end = 10
+test_count = 1000 
 second_derivative = False
-eval_step_size = 1e-4
+eval_step_size = 1e-6
 divider = 2
 number_of_samples = int(test_count/divider)
 
@@ -202,6 +202,13 @@ with torch.no_grad():
 # Idea: Generate splines based on the mean/samples from the GP
 # The sagemath spline function can be directly differentiated (up to grade 2)
 
+one = float(1)*torch.exp(float(-0.5)*test_x)
+two = float(1)*torch.exp(float(-0.25)*test_x)
+three = float(1)*torch.exp(float(-0.25)*test_x) - float(1)*torch.exp(float(-0.5)*test_x)
+four = -float(0.5)*torch.exp(float(-0.5)*test_x)
+five = - float(0.25)*torch.exp(float(-0.25)*test_x) + float(0.5)*torch.exp(float(-0.5)*test_x)
+train_y = torch.stack([one, two, three, four, five], int(-1))
+
 # Then it's up to the user to manually write down the differential equation again 
 # and sum up the (absolute) error terms
 sample_repititions = 1
@@ -209,6 +216,7 @@ all_samples = list()
 for sample_rep in range(sample_repititions):
     sample_result = {}
     sample = output.mean
+    sample = train_y
     #with gpytorch.settings.fast_pred_var():
     #    sample = outputs.sample()
 
