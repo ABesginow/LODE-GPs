@@ -50,6 +50,8 @@ class LODE_Kernel(Kernel):
             if not x2 is None:
                 common_terms["t_diff"] = x1-x2.t()
                 common_terms["t_sum"] = x1+x2.t()
+                common_terms["t_ones"] = torch.ones_like(x1+x2.t())
+                common_terms["t_zeroes"] = torch.zeros_like(x1+x2.t())
             K_list = list() 
             for rownum, row in enumerate(self.covar_description):
                 for cell in row:
@@ -90,7 +92,7 @@ def create_kernel_matrix_from_diagonal(D):
             for root in roots:
                 # Complex root, i.e. sinusoidal exponential
                 #if root[0].is_complex():
-                if root[0].is_imaginary():
+                if root[0].is_imaginary() and not root[0].imag() == 0.0:
                     # Check to prevent conjugates creating additional kernels
                     if not root[0].conjugate() in [r[0] for r in roots_copy]:
                         continue
@@ -139,12 +141,22 @@ def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary):
     return final_kernel_matrix 
 
 
-def replace_sum_and_diff(kernelmatrix, sumname="t_sum", diffname="t_diff"):
+def replace_sum_and_diff(kernelmatrix, sumname="t_sum", diffname="t_diff", onesname="t_ones", zerosname="t_zeroes"):
     result_kernel_matrix = cp.deepcopy(kernelmatrix)
     var(sumname, diffname)
     for i, row in enumerate(kernelmatrix):
         for j, cell in enumerate(row):
-            result_kernel_matrix[i][j] = cell.substitute({t1-t2:globals()[diffname], t1+t2:globals()[sumname]})
+            if type(cell) == sage.symbolic.expression.Expression:
+                result_kernel_matrix[i][j] = cell.substitute({t1-t2:globals()[diffname], t1+t2:globals()[sumname]})
+            # This case is assumed to be just a constant, but we require it to be of 
+            # the same size as the other covariance submatrices
+            else:
+                if cell == 0:
+                    var(zerosname)
+                    result_kernel_matrix[i][j] = globals()[zerosname]
+                else:
+                    var(onesname)
+                    result_kernel_matrix[i][j] = cell * globals()[onesname]
     return result_kernel_matrix
 
 
@@ -188,7 +200,8 @@ def replace_parameters(kernel_string, model_parameters, common_terms = []):
 def verify_sage_entry(kernel_string, local_vars):
     # This is a call to willingly produce an error if the string is not originally coming from sage
     try:
-        kernel_string = kernel_string.simplify()
+        if type(kernel_string) == sage.symbolic.expression.Expression:
+            kernel_string = kernel_string.simplify()
         kernel_string = str(kernel_string)
         sage_eval(kernel_string, locals = local_vars)
     except Exception as E:
