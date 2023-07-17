@@ -32,6 +32,7 @@ class LODEGP(gpytorch.models.ExactGP):
         print(f"V:{V}")
         Vt = V.transpose()
         kernel_matrix, self.kernel_translation_dict, parameter_dict = create_kernel_matrix_from_diagonal(D)
+        self.ode_count = A.nrows()
         self.kernelsize = len(kernel_matrix)
         self.model_parameters = parameter_dict
         PP = PolynomialRing(QQ, ["x", "dx1", "dx2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
@@ -156,8 +157,55 @@ for i in range(training_iterations):
 
 print(list(model.named_parameters()))
 
-test_x = torch.linspace(0, 1, 10)
+test_start = 0
+test_end = 1
+test_count = 10
+test_x = torch.linspace(test_start, test_end, test_count)
 model.eval()
 likelihood.eval()
 
-model(test_x)
+#output = model(test_x)
+output = likelihood(model(test_x))
+print(output.mean)
+# ODE solution precision evaluation
+# Idea: Generate splines based on the mean/samples from the GP
+# The sagemath spline function can be directly differentiated (up to grade 2)
+
+# Then it's up to the user to manually write down the differential equation again 
+# and sum up the (absolute) error terms
+
+fkt = list()
+for dimension in range(model.kernelsize):
+    output_channel = output.mean[:, dimension]
+    fkt.append(spline([(t, y) for t, y in zip(test_x, output_channel)]))
+
+
+#ode_test_vals = np.linspace(test_start, test_end, 10)
+ode_test_vals = test_x
+
+# System 1 (no idea)
+#A = matrix(R, Integer(2), Integer(3), [x, -x**2+x-1, x-2, 2-x, x**2-x-1, -x])
+#ode1 = lambda val: fkt[0].derivative(val, 1) - fkt[1].derivative(val, 2) + fkt[1].derivative(val, 1) - fkt[1](val) + fkt[2].derivative(val, 1) - fkt[2](val)
+#ode2 = lambda val: 2*fkt[0](val) - fkt[0].derivative(val, 1) + fkt[1].derivative(val, 2) - fkt[1].derivative(val, 1) - fkt[1](val) - fkt[2].derivative(val, 1)
+
+# Heating system with parameters
+#A = matrix(R, Integer(2), Integer(3), [])
+
+# Linearized bipendulum
+#A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1, 0, x**2+4.905, -1])
+
+# 3 Tank system (5 dimensional uncontrollable system)
+#A = matrix(R, Integer(3), Integer(5), [-x, 0, 0, 1, 0| 0, -x, 0, 1, 1| 0, 0, -x, 0, 1])
+ode1 = lambda val: -fkt[0].derivative(val, 1) + fkt[3](val)
+ode2 = lambda val: -fkt[1].derivative(val, 1) + fkt[3](val) + fkt[4](val)
+ode3 = lambda val: -fkt[2].derivative(val, 1) + fkt[4](val)
+
+ode_error_list = [[] for _ in range(model.ode_count)]
+for val in ode_test_vals:
+    for i in range(model.ode_count):
+        ode_error_list[i].append(globals()[f"ode{i+1}"](val))
+
+print(np.mean(ode_error_list[0]))
+print(np.mean(ode_error_list[1]))
+print(np.mean(ode_error_list[2]))
+print(np.mean(ode_error_list))
