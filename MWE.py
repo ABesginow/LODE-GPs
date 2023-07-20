@@ -34,18 +34,19 @@ class LODEGP(gpytorch.models.ExactGP):
         D, U, V = A.smith_form()
         print(f"D:{D}")
         print(f"V:{V}")
+        x, a, b = var("x, a, b")
+        V_temp = [list(b) for b in V.rows()]
+        print(V_temp)
+        V = sage_eval(f"matrix({str(V_temp)})", locals={"x":x, "a":a, "b":b})
         Vt = V.transpose()
         kernel_matrix, self.kernel_translation_dict, parameter_dict = create_kernel_matrix_from_diagonal(D)
         self.ode_count = A.nrows()
         self.kernelsize = len(kernel_matrix)
         self.model_parameters = parameter_dict
-        PP = PolynomialRing(F, ["x", "dx1", "dx2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
-        #var(["x", "dx1", "dx2"] + ["t1", "t2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
-        k = matrix(PP, Integer(len(kernel_matrix)), Integer(len(kernel_matrix)), kernel_matrix)
-        V = V.change_ring(PP)
-        Vt = Vt.change_ring(PP)
-        V = V.substitute(x=V.base_ring().gens()[1])
-        Vt = Vt.substitute(x=Vt.base_ring().gens()[2])
+        var(["x", "dx1", "dx2"] + ["t1", "t2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
+        k = matrix(Integer(len(kernel_matrix)), Integer(len(kernel_matrix)), kernel_matrix)
+        V = V.substitute(x=dx1)
+        V = V.substitute(x=dx2)
 
         #train_x = self._slice_input(train_x)
 
