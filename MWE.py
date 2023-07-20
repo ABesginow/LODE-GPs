@@ -17,15 +17,19 @@ class LODEGP(gpytorch.models.ExactGP):
         self.mean_module = gpytorch.means.MultitaskMean(
             gpytorch.means.ZeroMean(), num_tasks=num_tasks
         )
-        R = QQ['x']; (x,) = R._first_ngens(1)
+        #R = QQ['x']; (x,) = R._first_ngens(1)
         # System 1 (no idea)
         #A = matrix(R, Integer(2), Integer(3), [x, -x**2+x-1, x-2, 2-x, x**2-x-1, -x])
         # Heating system with parameters
-        #A = matrix(R, Integer(2), Integer(3), [])
+        F = FunctionField(QQ, names=('a',)); (a,) = F._first_ngens(1)
+        F = FunctionField(F, names=('b',)); (b,) = F._first_ngens(1)
+        R = F['x']; (x,) = R._first_ngens(1)
+
+        A = matrix(R, Integer(2), Integer(3), [x+a, -a, -1, -b, x+b, 0])
         # Linearized bipendulum
         #A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1, 0, x**2+4.905, -1/2])
         # 3 Tank system (5 dimensional uncontrollable system)
-        A = matrix(R, Integer(3), Integer(5), [-x, 0, 0, 1, 0, 0, -x, 0, 1, 1, 0, 0, -x, 0, 1])
+        #A = matrix(R, Integer(3), Integer(5), [-x, 0, 0, 1, 0, 0, -x, 0, 1, 1, 0, 0, -x, 0, 1])
 
         D, U, V = A.smith_form()
         print(f"D:{D}")
@@ -35,13 +39,13 @@ class LODEGP(gpytorch.models.ExactGP):
         self.ode_count = A.nrows()
         self.kernelsize = len(kernel_matrix)
         self.model_parameters = parameter_dict
-        PP = PolynomialRing(QQ, ["x", "dx1", "dx2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
-        var(["x", "dx1", "dx2"] + ["t1", "t2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
+        PP = PolynomialRing(F, ["x", "dx1", "dx2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
+        #var(["x", "dx1", "dx2"] + ["t1", "t2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
         k = matrix(PP, Integer(len(kernel_matrix)), Integer(len(kernel_matrix)), kernel_matrix)
         V = V.change_ring(PP)
         Vt = Vt.change_ring(PP)
-        V = V.substitute(x=dx1)
-        Vt = Vt.substitute(x=dx2)
+        V = V.substitute(x=V.base_ring().gens()[1])
+        Vt = Vt.substitute(x=Vt.base_ring().gens()[2])
 
         #train_x = self._slice_input(train_x)
 
@@ -118,28 +122,30 @@ train_x = torch.linspace(0, 15, num_data)
 #three = -0.25*torch.exp(train_x) + 2*(torch.cos(train_x) - torch.sin(train_x)) 
 
 ## Heating system 
-#one = float(0.5)*torch.cos(float(0.5)*train_x)*torch.exp(float(-0.1)*train_x) + float(0.9)*torch.exp(float(-0.1)*train_x)*torch.sin(float(0.5)*train_x)
-#two = torch.sin(float(0.5)*train_x)*torch.exp(float(-0.1)*train_x)
-#three = float(1.9)*torch.cos(float(0.5)*train_x)*torch.exp(float(-0.1)*train_x) - float(16/25)*torch.exp(float(-0.1)*train_x)*torch.sin(float(0.5)*train_x)
+one = float(0.5)*torch.cos(float(0.5)*train_x)*torch.exp(float(-0.1)*train_x) + float(0.9)*torch.exp(float(-0.1)*train_x)*torch.sin(float(0.5)*train_x)
+two = torch.sin(float(0.5)*train_x)*torch.exp(float(-0.1)*train_x)
+three = float(1.9)*torch.cos(float(0.5)*train_x)*torch.exp(float(-0.1)*train_x) - float(16/25)*torch.exp(float(-0.1)*train_x)*torch.sin(float(0.5)*train_x)
 
 # Bipendulum
 #one   = -float(41)/float(100)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(1))     - float(3)/float(5)*torch.cos(float(3)*train_x)/torch.pow((train_x+int(1)), float(2))           + float(1)/float(5)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(3))
 #two   = float(81)/float(2000)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(1))     - float(3)/float(10)*torch.cos(float(3)*train_x)/torch.pow((train_x+int(1)), float(2))                   + float(1)/float(10)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(3))
 #three = -float(3321)/float(10000)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(1)) + float(987)/float(500)*torch.cos(float(3)*train_x)/torch.pow((train_x+int(1)), float(2)) - float(3929)/float(500)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(3)) - float(36)/float(5)*torch.cos(float(3)*train_x)/torch.pow((train_x+int(1)), float(4)) + float(12)/float(5)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(5))
 #
-#train_y = torch.stack((one, two, three), -1)
+train_y = torch.stack((one, two, three), -1)
 
 # Three tank
-one = float(1)*torch.exp(float(-0.5)*train_x)
-two = float(1)*torch.exp(float(-0.25)*train_x)
-three = float(1)*torch.exp(float(-0.25)*train_x) - float(1)*torch.exp(float(-0.5)*train_x)
-four = -float(0.5)*torch.exp(float(-0.5)*train_x)
-five = - float(0.25)*torch.exp(float(-0.25)*train_x) + float(0.5)*torch.exp(float(-0.5)*train_x)
-train_y = torch.stack([one, two, three, four, five], int(-1))
+#one = float(1)*torch.exp(float(-0.5)*train_x)
+#two = float(1)*torch.exp(float(-0.25)*train_x)
+#three = float(1)*torch.exp(float(-0.25)*train_x) - float(1)*torch.exp(float(-0.5)*train_x)
+#four = -float(0.5)*torch.exp(float(-0.5)*train_x)
+#five = - float(0.25)*torch.exp(float(-0.25)*train_x) + float(0.5)*torch.exp(float(-0.5)*train_x)
+#train_y = torch.stack([one, two, three, four, five], int(-1))
 
-likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(5, noise_constraint=gpytorch.constraints.Positive())
+num_tasks = 3
+
+likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(3, noise_constraint=gpytorch.constraints.Positive())
 start = time.time()
-model = LODEGP(train_x, train_y, likelihood, 5)
+model = LODEGP(train_x, train_y, likelihood, 3)
 end = time.time()
 model(train_x)
 
