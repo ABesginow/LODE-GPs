@@ -60,7 +60,7 @@ class LODE_Kernel(Kernel):
             # from https://discuss.pytorch.org/t/how-to-interleave-two-tensors-along-certain-dimension/11332/6
             #if K_list[0].ndim == 1:
             #    K_list = [kk.unsqueeze(1) for kk in K_list]
-            K = einops.rearrange(K_list, '(t1 t2) h w -> (h t2) (w t1)', t1=kernel_count, t2=kernel_count)  
+            K = einops.rearrange(K_list, '(t1 t2) h w -> (h t1) (w t2)', t1=kernel_count, t2=kernel_count)  
 
             return K 
 
@@ -77,12 +77,12 @@ def create_kernel_matrix_from_diagonal(D):
             entry = D[i][i]
         var(f"LODEGP_kernel_{i}")
         if entry == 0:
-            param_dict[f"signal_variance_{i}"] = torch.nn.Parameter(torch.tensor(float(1.)))
-            param_dict[f"lengthscale_{i}"] = torch.nn.Parameter(torch.tensor(float(1.)))
+            param_dict[f"signal_variance_{i}"] = torch.nn.Parameter(torch.tensor(float(0.)))
+            param_dict[f"lengthscale_{i}"] = torch.nn.Parameter(torch.tensor(float(0.)))
             # Create an SE kernel
             var(f"signal_variance_{i}")
             var(f"lengthscale_{i}")
-            translation_dictionary[f"LODEGP_kernel_{i}"] = globals()[f"signal_variance_{i}"]**2 * exp(-0.5*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
+            translation_dictionary[f"LODEGP_kernel_{i}"] = globals()[f"signal_variance_{i}"]**2 * exp(-1/2*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
         elif entry == 1:
             translation_dictionary[f"LODEGP_kernel_{i}"] = 0 
         else:
@@ -92,6 +92,8 @@ def create_kernel_matrix_from_diagonal(D):
             for root in roots:
                 # Complex root, i.e. sinusoidal exponential
                 #if root[0].is_complex():
+                param_dict[f"signal_variance_{i}"] = torch.nn.Parameter(torch.tensor(float(0.)))
+                var(f"signal_variance_{i}")
                 if root[0].is_imaginary() and not root[0].imag() == 0.0:
                     # Check to prevent conjugates creating additional kernels
                     if not root[0].conjugate() in [r[0] for r in roots_copy]:
@@ -109,7 +111,8 @@ def create_kernel_matrix_from_diagonal(D):
                     var("exponent_runner")
                     # Create the exponential kernel functions
                     kernel_translation_kernel += sum(t1**globals()["exponent_runner"] * t2**globals()["exponent_runner"], globals()["exponent_runner"], 0, root[1]-1) * exp(root[0]*(t1+t2))
-            translation_dictionary[f"LODEGP_kernel_{i}"] = kernel_translation_kernel 
+            # TODO: Eeach summand gets their own signal variance
+            translation_dictionary[f"LODEGP_kernel_{i}"] = globals()[f"signal_variance_{i}"]**2*kernel_translation_kernel 
         sage_covariance_matrix[i][i] = globals()[f"LODEGP_kernel_{i}"]
     return sage_covariance_matrix, translation_dictionary, param_dict
 

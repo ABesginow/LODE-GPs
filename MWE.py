@@ -23,7 +23,7 @@ class LODEGP(gpytorch.models.ExactGP):
         # Heating system with parameters
         #A = matrix(R, Integer(2), Integer(3), [])
         # Linearized bipendulum
-        #A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1, 0, x**2+4.905, -1])
+        #A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1, 0, x**2+4.905, -1/2])
         # 3 Tank system (5 dimensional uncontrollable system)
         A = matrix(R, Integer(3), Integer(5), [-x, 0, 0, 1, 0, 0, -x, 0, 1, 1, 0, 0, -x, 0, 1])
 
@@ -100,28 +100,35 @@ class LODEGP(gpytorch.models.ExactGP):
             self.common_terms["t_sum"] = X+X.t()
         mean_x = self.mean_module(X)
         covar_x = self.covar_module(X, common_terms=self.common_terms)
+        #print(torch.linalg.eigvalsh(covar_x.evaluate()))
         #covar_x = covar_x.flatten()
         #print(list(torch.linalg.eigh(covar_x)[0])[::-1])
         return gpytorch.distributions.MultitaskMultivariateNormal(mean_x, covar_x) 
 
+
+
+
 torch.set_default_tensor_type(torch.DoubleTensor)
 
-num_data = 15
+num_data = 50 
 train_x = torch.linspace(0, 15, num_data)
 # System 1
 #one = -0.25*torch.exp(train_x) + 2*(torch.cos(train_x) + torch.sin(train_x)) 
 #two = 4*torch.sin(train_x) 
 #three = -0.25*torch.exp(train_x) + 2*(torch.cos(train_x) - torch.sin(train_x)) 
+
 ## Heating system 
 #one = float(0.5)*torch.cos(float(0.5)*train_x)*torch.exp(float(-0.1)*train_x) + float(0.9)*torch.exp(float(-0.1)*train_x)*torch.sin(float(0.5)*train_x)
 #two = torch.sin(float(0.5)*train_x)*torch.exp(float(-0.1)*train_x)
 #three = float(1.9)*torch.cos(float(0.5)*train_x)*torch.exp(float(-0.1)*train_x) - float(16/25)*torch.exp(float(-0.1)*train_x)*torch.sin(float(0.5)*train_x)
+
 # Bipendulum
 #one   = -float(41)/float(100)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(1))     - float(3)/float(5)*torch.cos(float(3)*train_x)/torch.pow((train_x+int(1)), float(2))           + float(1)/float(5)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(3))
 #two   = float(81)/float(2000)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(1))     - float(3)/float(10)*torch.cos(float(3)*train_x)/torch.pow((train_x+int(1)), float(2))                   + float(1)/float(10)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(3))
 #three = -float(3321)/float(10000)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(1)) + float(987)/float(500)*torch.cos(float(3)*train_x)/torch.pow((train_x+int(1)), float(2)) - float(3929)/float(500)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(3)) - float(36)/float(5)*torch.cos(float(3)*train_x)/torch.pow((train_x+int(1)), float(4)) + float(12)/float(5)*torch.sin(float(3)*train_x)/torch.pow((train_x+int(1)), float(5))
 #
 #train_y = torch.stack((one, two, three), -1)
+
 # Three tank
 one = float(1)*torch.exp(float(-0.5)*train_x)
 two = float(1)*torch.exp(float(-0.25)*train_x)
@@ -130,7 +137,7 @@ four = -float(0.5)*torch.exp(float(-0.5)*train_x)
 five = - float(0.25)*torch.exp(float(-0.25)*train_x) + float(0.5)*torch.exp(float(-0.5)*train_x)
 train_y = torch.stack([one, two, three, four, five], int(-1))
 
-likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(5)
+likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(5, noise_constraint=gpytorch.constraints.Positive())
 start = time.time()
 model = LODEGP(train_x, train_y, likelihood, 5)
 end = time.time()
@@ -140,7 +147,7 @@ model(train_x)
 model.train()
 likelihood.train()
 
-training_iterations = 50
+training_iterations = 100
 # Use the adam optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
 
@@ -157,9 +164,9 @@ for i in range(training_iterations):
 
 print(list(model.named_parameters()))
 
-test_start = 0
-test_end = 1
-test_count = 10
+test_start = 1
+test_end = 5 
+test_count = 1000
 test_x = torch.linspace(test_start, test_end, test_count)
 model.eval()
 likelihood.eval()
@@ -184,7 +191,7 @@ for dimension in range(model.kernelsize):
 ode_test_vals = test_x
 
 # System 1 (no idea)
-#A = matrix(R, Integer(2), Integer(3), [x, -x**2+x-1, x-2, 2-x, x**2-x-1, -x])
+#A = matrix(R, Integer(2), Integer(3), [x, -x**2+x-1, x-2 | 2-x, x**2-x-1, -x])
 #ode1 = lambda val: fkt[0].derivative(val, 1) - fkt[1].derivative(val, 2) + fkt[1].derivative(val, 1) - fkt[1](val) + fkt[2].derivative(val, 1) - fkt[2](val)
 #ode2 = lambda val: 2*fkt[0](val) - fkt[0].derivative(val, 1) + fkt[1].derivative(val, 2) - fkt[1].derivative(val, 1) - fkt[1](val) - fkt[2].derivative(val, 1)
 
@@ -192,7 +199,7 @@ ode_test_vals = test_x
 #A = matrix(R, Integer(2), Integer(3), [])
 
 # Linearized bipendulum
-#A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1, 0, x**2+4.905, -1])
+#A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1| 0, x**2+4.905, -1/2])
 
 # 3 Tank system (5 dimensional uncontrollable system)
 #A = matrix(R, Integer(3), Integer(5), [-x, 0, 0, 1, 0| 0, -x, 0, 1, 1| 0, 0, -x, 0, 1])
@@ -203,7 +210,7 @@ ode3 = lambda val: -fkt[2].derivative(val, 1) + fkt[4](val)
 ode_error_list = [[] for _ in range(model.ode_count)]
 for val in ode_test_vals:
     for i in range(model.ode_count):
-        ode_error_list[i].append(globals()[f"ode{i+1}"](val))
+        ode_error_list[i].append(np.abs(globals()[f"ode{i+1}"](val)))
 
 print(np.mean(ode_error_list[0]))
 print(np.mean(ode_error_list[1]))
