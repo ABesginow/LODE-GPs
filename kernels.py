@@ -89,11 +89,11 @@ def create_kernel_matrix_from_diagonal(D):
             kernel_translation_kernel = 0
             roots = entry.roots(ring=CC)
             roots_copy = cp.deepcopy(roots)
-            for root in roots:
+            for rootnum, root in enumerate(roots):
                 # Complex root, i.e. sinusoidal exponential
                 #if root[0].is_complex():
-                param_dict[f"signal_variance_{i}"] = torch.nn.Parameter(torch.tensor(float(0.)))
-                var(f"signal_variance_{i}")
+                param_dict[f"signal_variance_{i}_{rootnum}"] = torch.nn.Parameter(torch.tensor(float(0.)))
+                var(f"signal_variance_{i}_{rootnum}")
                 if root[0].is_imaginary() and not root[0].imag() == 0.0:
                     # Check to prevent conjugates creating additional kernels
                     if not root[0].conjugate() in [r[0] for r in roots_copy]:
@@ -105,14 +105,13 @@ def create_kernel_matrix_from_diagonal(D):
 
                     # Create sinusoidal kernel
                     var("exponent_runner")
-                    kernel_translation_kernel += sum(t1**globals()["exponent_runner"] * t2**globals()["exponent_runner"], globals()["exponent_runner"], 0, root[1]-1) *\
+                    kernel_translation_kernel += globals()[f"signal_variance_{i}_{rootnum}"]**2*sum(t1**globals()["exponent_runner"] * t2**globals()["exponent_runner"], globals()["exponent_runner"], 0, root[1]-1) *\
                                                     exp(root[0].real()*(t1 + t2)) * cos(root[0].imag()*(t1-t2))
                 else:
                     var("exponent_runner")
                     # Create the exponential kernel functions
-                    kernel_translation_kernel += sum(t1**globals()["exponent_runner"] * t2**globals()["exponent_runner"], globals()["exponent_runner"], 0, root[1]-1) * exp(root[0]*(t1+t2))
-            # TODO: Eeach summand gets their own signal variance
-            translation_dictionary[f"LODEGP_kernel_{i}"] = globals()[f"signal_variance_{i}"]**2*kernel_translation_kernel 
+                    kernel_translation_kernel += globals()[f"signal_variance_{i}_{rootnum}"]**2*sum(t1**globals()["exponent_runner"] * t2**globals()["exponent_runner"], globals()["exponent_runner"], 0, root[1]-1) * exp(root[0]*(t1+t2))
+            translation_dictionary[f"LODEGP_kernel_{i}"] = kernel_translation_kernel 
         sage_covariance_matrix[i][i] = globals()[f"LODEGP_kernel_{i}"]
     return sage_covariance_matrix, translation_dictionary, param_dict
 
