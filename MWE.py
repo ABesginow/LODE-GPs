@@ -17,15 +17,22 @@ class LODEGP(gpytorch.models.ExactGP):
         self.mean_module = gpytorch.means.MultitaskMean(
             gpytorch.means.ZeroMean(), num_tasks=num_tasks
         )
-        #R = QQ['x']; (x,) = R._first_ngens(1)
-        # System 1 (no idea)
-        #A = matrix(R, Integer(2), Integer(3), [x, -x**2+x-1, x-2, 2-x, x**2-x-1, -x])
         # Heating system with parameters
         F = FunctionField(QQ, names=('a',)); (a,) = F._first_ngens(1)
         F = FunctionField(F, names=('b',)); (b,) = F._first_ngens(1)
         R = F['x']; (x,) = R._first_ngens(1)
 
         A = matrix(R, Integer(2), Integer(3), [x+a, -a, -1, -b, x+b, 0])
+        self.model_parameters = torch.nn.ParameterDict({
+            "a":torch.nn.Parameter(torch.tensor(0.0)),
+            "b":torch.nn.Parameter(torch.tensor(0.0))
+        })
+
+
+        #self.model_parameters = torch.nn.ParameterDict()
+        #R = QQ['x']; (x,) = R._first_ngens(1)
+        # System 1 (no idea)
+        #A = matrix(R, Integer(2), Integer(3), [x, -x**2+x-1, x-2, 2-x, x**2-x-1, -x])
         # Linearized bipendulum
         #A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1, 0, x**2+4.905, -1/2])
         # 3 Tank system (5 dimensional uncontrollable system)
@@ -42,11 +49,12 @@ class LODEGP(gpytorch.models.ExactGP):
         kernel_matrix, self.kernel_translation_dict, parameter_dict = create_kernel_matrix_from_diagonal(D)
         self.ode_count = A.nrows()
         self.kernelsize = len(kernel_matrix)
-        self.model_parameters = parameter_dict
+        self.model_parameters.update(parameter_dict)
+        print(self.model_parameters)
         var(["x", "dx1", "dx2"] + ["t1", "t2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
         k = matrix(Integer(len(kernel_matrix)), Integer(len(kernel_matrix)), kernel_matrix)
         V = V.substitute(x=dx1)
-        V = V.substitute(x=dx2)
+        Vt = Vt.substitute(x=dx2)
 
         #train_x = self._slice_input(train_x)
 
@@ -61,7 +69,7 @@ class LODEGP(gpytorch.models.ExactGP):
         self.diffed_kernel = differentiate_kernel_matrix(k, V, Vt, self.kernel_translation_dict)
         self.sum_diff_replaced = replace_sum_and_diff(self.diffed_kernel)
         self.covar_description = translate_kernel_matrix_to_gpytorch_kernel(self.sum_diff_replaced, self.model_parameters, common_terms=self.common_terms)
-        self.covar_module = LODE_Kernel(self.covar_description, parameter_dict)
+        self.covar_module = LODE_Kernel(self.covar_description, self.model_parameters)
 
 
     def __str__(self, substituted=False):
@@ -144,9 +152,9 @@ train_y = torch.stack((one, two, three), -1)
 
 num_tasks = 3
 
-likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(3, noise_constraint=gpytorch.constraints.Positive())
+likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks, noise_constraint=gpytorch.constraints.Positive())
 start = time.time()
-model = LODEGP(train_x, train_y, likelihood, 3)
+model = LODEGP(train_x, train_y, likelihood, num_tasks)
 end = time.time()
 model(train_x)
 
@@ -179,8 +187,8 @@ model.eval()
 likelihood.eval()
 
 #output = model(test_x)
-output = likelihood(model(test_x))
-print(output.mean)
+with torch.no_grad():
+    output = likelihood(model(test_x))
 # ODE solution precision evaluation
 # Idea: Generate splines based on the mean/samples from the GP
 # The sagemath spline function can be directly differentiated (up to grade 2)
@@ -204,15 +212,24 @@ ode_test_vals = test_x
 
 # Heating system with parameters
 #A = matrix(R, Integer(2), Integer(3), [])
+a = torch.exp(model.model_parameters["a"].detach())
+b = torch.exp(model.model_parameters["b"].detach())
+print(f"a diff:{3 - a}")
+print(f"b diff:{1 - b}")
+ode1 = lambda val: fkt[0].derivative(val, 1) + fkt[0](val)*a - fkt[1](val)*a - fkt[2](val)
+ode2 = lambda val: -fkt[0](val)*b + fkt[1].derivative(val, 1) + fkt[1](val)*b
+
 
 # Linearized bipendulum
 #A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1| 0, x**2+4.905, -1/2])
+#ode1 = lambda val: fkt[0].derivative(val, 2) + 9.81*fkt[0](val) - fkt[2](val)
+#ode1 = lambda val: fkt[1].derivative(val, 2) + 1/2*9.81*fkt[1](val) - 1/2*fkt[2](val)
 
 # 3 Tank system (5 dimensional uncontrollable system)
 #A = matrix(R, Integer(3), Integer(5), [-x, 0, 0, 1, 0| 0, -x, 0, 1, 1| 0, 0, -x, 0, 1])
-ode1 = lambda val: -fkt[0].derivative(val, 1) + fkt[3](val)
-ode2 = lambda val: -fkt[1].derivative(val, 1) + fkt[3](val) + fkt[4](val)
-ode3 = lambda val: -fkt[2].derivative(val, 1) + fkt[4](val)
+#ode1 = lambda val: -fkt[0].derivative(val, 1) + fkt[3](val)
+#ode2 = lambda val: -fkt[1].derivative(val, 1) + fkt[3](val) + fkt[4](val)
+#ode3 = lambda val: -fkt[2].derivative(val, 1) + fkt[4](val)
 
 ode_error_list = [[] for _ in range(model.ode_count)]
 for val in ode_test_vals:
@@ -221,5 +238,6 @@ for val in ode_test_vals:
 
 print(np.mean(ode_error_list[0]))
 print(np.mean(ode_error_list[1]))
-print(np.mean(ode_error_list[2]))
+#print(np.mean(ode_error_list[2]))
 print(np.mean(ode_error_list))
+

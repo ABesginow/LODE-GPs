@@ -116,6 +116,12 @@ def create_kernel_matrix_from_diagonal(D):
     return sage_covariance_matrix, translation_dictionary, param_dict
 
 
+def build_dict_for_SR_expression(expression):
+    final_dict = {}
+    for coeff_dx1 in expression.coefficients(dx1):
+        final_dict.update({(Integer(coeff_dx1[1]), Integer(coeff_dx2[1])): coeff_dx2[0] for coeff_dx2 in coeff_dx1[0].coefficients(dx2)})
+    return final_dict
+
 def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary):
     """
     This code takes the sage covariance matrix and differentiation matrices
@@ -127,9 +133,10 @@ def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary):
     for i, row in  enumerate(sage_multiplication_kernel_matrix):
         for j, cell in enumerate(row):
             cell_expression = 0
-            diff_dictionary = cell.dict()
+            diff_dictionary = build_dict_for_SR_expression(cell)
             for summand in diff_dictionary:
-                temp_cell_expression = mul([K[i][i] for i, multiplicant in enumerate(summand[3:]) if multiplicant > 0])
+                #temp_cell_expression = mul([K[i][i] for i, multiplicant in enumerate(summand[3:]) if multiplicant > 0])
+                temp_cell_expression = diff_dictionary[summand]
                 for kernel_translation in kernel_translation_dictionary:
                     if kernel_translation in str(temp_cell_expression):
                         temp_cell_expression = SR(temp_cell_expression)
@@ -138,7 +145,7 @@ def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary):
                         temp_cell_expression = temp_cell_expression.substitute(globals()[kernel_translation]==kernel_translation_dictionary[kernel_translation])
 
                 # And now that everything is replaced: diff that bad boy!
-                cell_expression += diff_dictionary[summand]*SR(temp_cell_expression).diff(t1, summand[1]).diff(t2, summand[2])
+                cell_expression += SR(temp_cell_expression).diff(t1, summand[0]).diff(t2, summand[1])
             final_kernel_matrix[i][j] = cell_expression
     return final_kernel_matrix 
 
@@ -148,7 +155,8 @@ def replace_sum_and_diff(kernelmatrix, sumname="t_sum", diffname="t_diff", onesn
     var(sumname, diffname)
     for i, row in enumerate(kernelmatrix):
         for j, cell in enumerate(row):
-            if type(cell) == sage.symbolic.expression.Expression:
+            # Check if the cell is just a number
+            if type(cell) == sage.symbolic.expression.Expression and not cell.is_numeric():
                 result_kernel_matrix[i][j] = cell.substitute({t1-t2:globals()[diffname], t1+t2:globals()[sumname]})
             # This case is assumed to be just a constant, but we require it to be of 
             # the same size as the other covariance submatrices
