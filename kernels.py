@@ -298,7 +298,14 @@ def extract_coefficient_recursively(coefficient, context):
         left, right = coefficient.operands()
         left = extract_coefficient_recursively(left, context)
         right = extract_coefficient_recursively(right, context)
-        coeff = lambda: torch_operations[extract_operation(str(coefficient.operator()))](left, right)
+        if callable(left) and callable(right):
+            coeff = lambda: torch_operations[extract_operation(str(coefficient.operator()))](left(), right())
+        elif callable(left):
+            coeff = lambda: torch_operations[extract_operation(str(coefficient.operator()))](left(), right)
+        elif callable(right):
+            coeff = lambda: torch_operations[extract_operation(str(coefficient.operator()))](left, right())
+        else:
+            coeff = lambda: torch_operations[extract_operation(str(coefficient.operator()))](left, right)
 
     # coefficient is variable, find the corresponding parameter
     elif coefficient.is_symbol():
