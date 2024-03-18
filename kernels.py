@@ -69,8 +69,10 @@ def create_kernel_matrix_from_diagonal(D):
     t1, t2 = var("t1, t2")
     translation_dictionary = dict()
     param_dict = torch.nn.ParameterDict()
-    sage_covariance_matrix = [[0 for cell in range(max(len(D.rows()), len(D.columns())))] for row in range(max(len(D.rows()), len(D.columns())))]
-    for i in range(max(len(D.rows()), len(D.columns()))):
+    #sage_covariance_matrix = [[0 for cell in range(max(len(D.rows()), len(D.columns())))] for row in range(max(len(D.rows()), len(D.columns())))]
+    sage_covariance_matrix = [[0 for cell in range(len(D.columns()))] for row in range(len(D.columns()))]
+    #for i in range(max(len(D.rows()), len(D.columns()))):
+    for i in range(len(D.columns())):
         if i > len(D.diagonal())-1:
             entry = 0
         else:
@@ -157,7 +159,8 @@ def replace_sum_and_diff(kernelmatrix, sumname="t_sum", diffname="t_diff", onesn
         for j, cell in enumerate(row):
             # Check if the cell is just a number
             if type(cell) == sage.symbolic.expression.Expression and not cell.is_numeric():
-                result_kernel_matrix[i][j] = cell.substitute({t1-t2:globals()[diffname], t1+t2:globals()[sumname]})
+                #result_kernel_matrix[i][j] = cell.substitute({t1-t2:globals()[diffname], t1+t2:globals()[sumname]})
+                result_kernel_matrix[i][j] = cell.substitute({t1:0.5*globals()[sumname] + 0.5*globals()[diffname], t2:0.5*globals()[sumname] - 0.5*globals()[diffname]})
             # This case is assumed to be just a constant, but we require it to be of 
             # the same size as the other covariance submatrices
             else:
