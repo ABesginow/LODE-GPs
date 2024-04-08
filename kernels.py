@@ -205,7 +205,7 @@ def replace_parameters(kernel_string, model_parameters, common_terms = []):
             kernel_string = re.sub(regex_replace_string.replace("REPLACE", term), r"\1" + f"common_terms[\"{term}\"]" + r"\3", kernel_string)
 
     for model_param in model_parameters:
-        kernel_string = re.sub(regex_replace_string.replace("REPLACE", model_param), r"\1"+f"torch.exp(model_parameters[\"{model_param}\"])"+r"\3", kernel_string)
+        kernel_string = re.sub(regex_replace_string.replace("REPLACE", model_param), r"\1"+f"(torch.exp(model_parameters[\"{model_param}\"]) + 1e-07)"+r"\3", kernel_string)
 
     return kernel_string 
 
