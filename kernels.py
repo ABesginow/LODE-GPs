@@ -231,6 +231,8 @@ def translate_kernel_matrix_to_gpytorch_kernel(kernelmatrix, paramdict, common_t
             # Now translate the cell to a call
             replaced_op_cell = replace_basic_operations(str(cell))
             replaced_var_cell = replace_parameters(replaced_op_cell, paramdict, common_terms)
+            #print("DEBUG: replaced_var_cell:")
+            #print(replaced_var_cell)
             kernel_call_matrix[rownum].append(compile(replaced_var_cell, "", "eval"))
 
 
