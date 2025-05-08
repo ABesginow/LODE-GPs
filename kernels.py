@@ -65,7 +65,14 @@ class LODE_Kernel(Kernel):
             return K 
 
 
-def create_kernel_matrix_from_diagonal(D):
+def create_kernel_matrix_from_diagonal(D, **kwargs):
+    base_kernel = kwargs["base_kernel"] if "base_kernel" in kwargs else "SE_kernel"
+    if base_kernel == "Matern_kernel":
+        sqrt_3 = sqrt(3).n()
+        # TODO abs around t1-t2
+        base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt_3*(t1 - t2)/globals()[f"lengthscale_{i}"])*exp(-sqrt_3*(t1 - t2)/globals()[f"lengthscale_{i}"])
+    elif base_kernel == "SE_kernel":
+        base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * exp(-1/2*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
     t1, t2 = var("t1, t2")
     translation_dictionary = dict()
     param_dict = torch.nn.ParameterDict()
@@ -84,7 +91,8 @@ def create_kernel_matrix_from_diagonal(D):
             # Create an SE kernel
             var(f"signal_variance_{i}")
             var(f"lengthscale_{i}")
-            translation_dictionary[f"LODEGP_kernel_{i}"] = globals()[f"signal_variance_{i}"]**2 * exp(-1/2*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
+            #translation_dictionary[f"LODEGP_kernel_{i}"] = globals()[f"signal_variance_{i}"]**2 * exp(-1/2*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
+            translation_dictionary[f"LODEGP_kernel_{i}"] = base_kernel_expression(i)
         elif entry == 1:
             translation_dictionary[f"LODEGP_kernel_{i}"] = 0 
         else:
@@ -177,6 +185,7 @@ def replace_basic_operations(kernel_string):
     # Define the regex replacement rules for the text
     regex_replacements_multi_group = {
         "exp" : [r'(e\^)\((([^()]*|\(([^()]*|\([^()]*\))*\))*)\)', "torch.exp"],
+        "sqrt" : [r'sqrt(\((([^()]*|\(([^()]*|\([^()]*\))*\))*)\))', "torch.sqrt"],
         "exp_singular" : [r'(e\^)([0-9a-zA-Z_]*)', "torch.exp"]
     }
     regex_replacements_single_group = {
