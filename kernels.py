@@ -126,13 +126,13 @@ def create_kernel_matrix_from_diagonal(D, **kwargs):
     return sage_covariance_matrix, translation_dictionary, param_dict
 
 
-def build_dict_for_SR_expression(expression):
+def build_dict_for_SR_expression(expression, dx1, dx2):
     final_dict = {}
     for coeff_dx1 in expression.coefficients(dx1):
         final_dict.update({(Integer(coeff_dx1[1]), Integer(coeff_dx2[1])): coeff_dx2[0] for coeff_dx2 in coeff_dx1[0].coefficients(dx2)})
     return final_dict
 
-def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary):
+def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary, dx1, dx2):
     """
     This code takes the sage covariance matrix and differentiation matrices
     and returns a list of lists containing the results of the `compile` 
@@ -143,7 +143,7 @@ def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary):
     for i, row in  enumerate(sage_multiplication_kernel_matrix):
         for j, cell in enumerate(row):
             cell_expression = 0
-            diff_dictionary = build_dict_for_SR_expression(cell)
+            diff_dictionary = build_dict_for_SR_expression(cell, dx1, dx2)
             for summand in diff_dictionary:
                 #temp_cell_expression = mul([K[i][i] for i, multiplicant in enumerate(summand[3:]) if multiplicant > 0])
                 temp_cell_expression = diff_dictionary[summand]
@@ -249,9 +249,8 @@ def translate_kernel_matrix_to_gpytorch_kernel(kernelmatrix, paramdict, common_t
     return kernel_call_matrix
 
 
-
-
-
+# Theorethically this is all depricated
+"""
 def make_symmetric(matrix):
     # matrix can either be list or torch.Tensor
     if not type(matrix) in [torch.Tensor, list]:
@@ -334,9 +333,10 @@ def extract_coefficient_recursively(coefficient, context):
 
     # Written for the asymmetric (general) case
 def single_term_extract(d_poly, context, d_var=var('d')):
-    """
+    # TODO uncomment if I un-deprecate the old code
+    ""
     Returns the degree and the coefficient (either as tensor or as a parameter)
-    """
+    ""
     assert context is not None, "Context must be specified"
     sage_coefficient = d_poly[0]
     degree = int(d_poly[1])
@@ -360,7 +360,8 @@ def single_term_extract(d_poly, context, d_var=var('d')):
 
 
 def extract_operand_list(polynomial, d_var, var_dict=None):
-    """
+    # TODO uncomment if I un-deprecate the old code
+    ""
     Cases to take care of
      - [x] Simply int/float values as either right or left poly
      - [x] Simply coefficients of sage number types
@@ -374,7 +375,7 @@ def extract_operand_list(polynomial, d_var, var_dict=None):
      - [x] Polynomials without addition in either left or right poly
        (e.g. left= a*x1^3)
      - [x] Other cases should all cause errors
-    """
+    ""
     list_of_operands = None
 
     # This is a hack to enable working with variables (due to matrices being
@@ -534,11 +535,12 @@ class SageExpression(Kernel):
 
 
 class exp_kernel(Kernel):
-    """
+    # TODO uncomment if I un-deprecate the old code
+    ""
     Implements a kernel of the form exp^(a*(t1+t2)) where a is a number/variable
     :param [torch.nn.Parameter, torch.Tensor] factors: Coefficient 'a' in
     reverse polish notation
-    """
+    ""
     def __init__(self, factor, coeff_exponent,  active_dims=None):
         super().__init__(active_dims=active_dims)
         self.is_diffable = True
@@ -546,13 +548,14 @@ class exp_kernel(Kernel):
         self.exp_coeff = coeff_exponent
 
     def _slice_input(self, X):
-        r"""
+        # TODO uncomment if I un-deprecate the old code
+        r""
         Slices :math:`X` according to ``self.active_dims``. If ``X`` is 1D then returns
         a 2D tensor with shape :math:`N \times 1`.
         :param torch.Tensor X: A 1D or 2D input tensor.
         :returns: a 2D slice of :math:`X`
         :rtype: torch.Tensor
-        """
+        ""
         if X.dim() == 2:
             return X[:, self.active_dims]
         elif X.dim() == 1:
@@ -631,11 +634,12 @@ class diffed_exp_kernel(Kernel):
 
         def set_derivation_coefficients_list(self, derivation_coefficients_list):
             self.derivation_coefficients_list = derivation_coefficients_list
-            """
+            # TODO uncomment if I un-deprecate the old code
+            ""
             The form of derivation_coefficients_list is:
             Is it a list of lists? Or just a list?
             [[coeff, coeff_exponent], [coeff, coeff_exponent2], ...]
-            """
+            ""
 
         def __str__(self):
             coeff_string = ""
@@ -645,13 +649,14 @@ class diffed_exp_kernel(Kernel):
             return string
 
         def _slice_input(self, X):
-            r"""
+            # TODO uncomment if I un-deprecate the old code
+            r""
             Slices :math:`X` according to ``self.active_dims``. If ``X`` is 1D then returns
             a 2D tensor with shape :math:`N \times 1`.
             :param torch.Tensor X: A 1D or 2D input tensor.
             :returns: a 2D slice of :math:`X`
             :rtype: torch.Tensor
-            """
+            ""
             if X.dim() == 2:
                 return X[:, self.active_dims]
             elif X.dim() == 1:
@@ -743,13 +748,14 @@ class diffed_SE_kernel(Kernel):
             return string
 
         def _slice_input(self, X):
-            r"""
+            # TODO uncomment if I un-deprecate the old code
+            r""
             Slices :math:`X` according to ``self.active_dims``. If ``X`` is 1D then returns
             a 2D tensor with shape :math:`N \times 1`.
             :param torch.Tensor X: A 1D or 2D input tensor.
             :returns: a 2D slice of :math:`X`
             :rtype: torch.Tensor
-            """
+            ""
             if X.dim() == 2:
                 return X[:, self.active_dims]
             elif X.dim() == 1:
@@ -758,9 +764,10 @@ class diffed_SE_kernel(Kernel):
                 raise ValueError("Input X must be either 1 or 2 dimensional.")
 
         def _square_scaled_dist(self, X, Z=None):
-            r"""
+            # TODO uncomment if I un-deprecate the old code
+            r""
             Returns :math:`\|\frac{X-Z}{l}\|^2`.
-            """
+            ""
             if Z is None:
                 Z = X
             if len(X.shape) == 1:
@@ -892,9 +899,10 @@ class Diff_SE_kernel(Kernel):
         return diffed_kernel
 
     def _square_scaled_dist(self, X, Z=None):
-        r"""
+        # TODO uncomment if I un-deprecate the old code
+        r""
         Returns :math:`\|\frac{X-Z}{l}\|^2`.
-        """
+        ""
         if Z is None:
             Z = X
         if len(X.shape) == 1:
@@ -915,20 +923,22 @@ class Diff_SE_kernel(Kernel):
 
 
     def _diag(self, X):
-        """
+        # TODO uncomment if I un-deprecate the old code
+        ""
         Calculates the diagonal part of covariance matrix on active features.
-        """
+        ""
         return self.var.expand(X.size(0))
 
 
     def _slice_input(self, X):
-        r"""
+        # TODO uncomment if I un-deprecate the old code
+        r""
         Slices :math:`X` according to ``self.active_dims``. If ``X`` is 1D then returns
         a 2D tensor with shape :math:`N \times 1`.
         :param torch.Tensor X: A 1D or 2D input tensor.
         :returns: a 2D slice of :math:`X`
         :rtype: torch.Tensor
-        """
+        ""
         if X.dim() == 2:
             return X[:, self.active_dims]
         elif X.dim() == 1:
@@ -1014,9 +1024,10 @@ class MatrixKernel(Kernel):
 
     # TODO aktualisieren
     def _diag(self, X):
-        """
+        # TODO uncomment if I un-deprecate the old code
+        ""
         Calculate the diagonal part for each of the kernels and construct a diagonal matrix
-        """
+        ""
         #TODO debug
         if X.ndim == 1:
             H_x = np.shape(X)[0]
@@ -1153,3 +1164,5 @@ class DiffMatrixKernel(MatrixKernel):
         kernel.set_matrix(output_matrix)
         #print(output_matrix)
         return kernel
+
+"""
