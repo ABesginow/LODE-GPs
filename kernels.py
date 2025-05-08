@@ -45,6 +45,8 @@ class LODE_Kernel(Kernel):
 
         #def forward(self, X, Z=None, common_terms=None):
         def forward(self, x1, x2, diag=False, **params):
+            if diag:
+                raise NotImplementedError("Diagonal forward not implemented for LODE_Kernel")
             common_terms = params["common_terms"]
             model_parameters = self.model_parameters
             if not x2 is None:
