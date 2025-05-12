@@ -171,7 +171,4 @@ class LODEGP(gpytorch.models.ExactGP):
             self.common_terms["t_sum"] = X+X.t()
         mean_x = self.mean_module(X)
         covar_x = self.covar_module(X, common_terms=self.common_terms)
-        #print(torch.linalg.eigvalsh(covar_x.evaluate()))
-        #covar_x = covar_x.flatten()
-        #print(list(torch.linalg.eigh(covar_x)[0])[::-1])
         return gpytorch.distributions.MultitaskMultivariateNormal(mean_x, covar_x) 
