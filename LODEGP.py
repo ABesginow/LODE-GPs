@@ -10,21 +10,23 @@ import torch
 
 
 # Functions for standard ODE models
-STANDARD_MODEL_FACTORIES = {}
+STANDARD_MODELS = {}
 
 def register_LODEGP_model(name):
     def decorator(fn):
-        STANDARD_MODEL_FACTORIES[name] = fn
+        STANDARD_MODELS[name] = fn
         return fn
     return decorator
 
 
 def load_standard_model(name: str):
     try:
-        return STANDARD_MODEL_FACTORIES[name]()
+        return STANDARD_MODELS[name]()
     except KeyError:
         raise ValueError(f"No standard model found for: {name}")
 
+def list_standard_models():
+    return list(STANDARD_MODELS.keys())
 
 # Base ODEs
 @register_LODEGP_model("Bipendulum")
