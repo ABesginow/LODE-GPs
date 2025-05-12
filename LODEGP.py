@@ -43,6 +43,37 @@ def bipendulum():
     A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1, 0, x**2+4.905, -1/2])
     return A, model_parameters
 
+@register_LODEGP_model("Bipendulum first equation")
+def bipendulum_first_eq():
+    model_parameters = torch.nn.ParameterDict()
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    # Linearized bipendulum
+    A = matrix(R, Integer(1), Integer(3), [x**2 + 9.81, 0, -1])
+    return A, model_parameters
+
+@register_LODEGP_model("Bipendulum second equation")
+def bipendulum_second_eq():
+    model_parameters = torch.nn.ParameterDict()
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    # Linearized bipendulum
+    A = matrix(R, Integer(1), Integer(3), [0, x**2+4.905, -1/2])
+    return A, model_parameters
+
+@register_LODEGP_model("Bipendulum Parameterized")
+def bipendulum_parameterized():
+    F = FunctionField(QQ, names=('l1',)); (l1,) = F._first_ngens(1)
+    F = FunctionField(F, names=('l2',)); (l2,) = F._first_ngens(1)
+    R = F['x']; (x,) = R._first_ngens(1)
+    # Linearized bipendulum
+    A = matrix(R, Integer(2), Integer(3), [x**2 + 981/(100*l1), 0, -1/l1, 0, x**2+981/(100*l2), -1/l2])
+    model_parameters = torch.nn.ParameterDict({
+        "l1":torch.nn.Parameter(torch.tensor(0.0)),
+        "l2":torch.nn.Parameter(torch.tensor(0.0))
+    })
+    return A, model_parameters
+
+
+
 
 @register_LODEGP_model("Three tank")
 def three_tank():
