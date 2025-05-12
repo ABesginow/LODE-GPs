@@ -41,7 +41,7 @@ def bipendulum():
     R = QQ['x']; (x,) = R._first_ngens(1)
     # Linearized bipendulum
     A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1, 0, x**2+4.905, -1/2])
-    return A, model_parameters
+    return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("Bipendulum first equation")
 def bipendulum_first_eq():
@@ -49,7 +49,7 @@ def bipendulum_first_eq():
     R = QQ['x']; (x,) = R._first_ngens(1)
     # Linearized bipendulum
     A = matrix(R, Integer(1), Integer(3), [x**2 + 9.81, 0, -1])
-    return A, model_parameters
+    return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("Bipendulum second equation")
 def bipendulum_second_eq():
@@ -57,7 +57,7 @@ def bipendulum_second_eq():
     R = QQ['x']; (x,) = R._first_ngens(1)
     # Linearized bipendulum
     A = matrix(R, Integer(1), Integer(3), [0, x**2+4.905, -1/2])
-    return A, model_parameters
+    return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("Bipendulum Parameterized")
 def bipendulum_parameterized():
@@ -70,6 +70,7 @@ def bipendulum_parameterized():
         "l1":torch.nn.Parameter(torch.tensor(0.0)),
         "l2":torch.nn.Parameter(torch.tensor(0.0))
     })
+    x, l1, l2 = var(["x", "l1", "l2"])
     return A, model_parameters, {"x":x, "l1": l1, "l2": l2}
 
 
@@ -83,7 +84,8 @@ def three_tank():
 
     # 3 Tank system (5 dimensional uncontrollable system)
     A = matrix(R, Integer(3), Integer(5), [-x, 0, 0, 1, 0, 0, -x, 0, 1, 1, 0, 0, -x, 0, 1])
-    return A, model_parameters
+
+    return A, model_parameters, {"x":var("x")}
 
 
 @register_LODEGP_model("Heating")
@@ -98,7 +100,7 @@ def heating_system():
         "a":torch.nn.Parameter(torch.tensor(0.0)),
         "b":torch.nn.Parameter(torch.tensor(0.0))
     })
-
+    x, a, b = var(["x", "a", "b"])
     return A, model_parameters, {"x":x, "a": a, "b": b}
 
 
@@ -108,7 +110,7 @@ def unknown():
     # System 1 (no idea)
     A = matrix(R, Integer(2), Integer(3), [x, -x**2+x-1, x-2, 2-x, x**2-x-1, -x])
 
-    return A, model_parameters
+    return A, model_parameters, {"x":var("x")}
 
 
 
@@ -148,7 +150,8 @@ class LODEGP(gpytorch.models.ExactGP):
         self.model_parameters.update(parameter_dict)
         if verbose:
             print(self.model_parameters)
-        var(["x", "dx1", "dx2"] + ["t1", "t2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
+        #var(["x", "dx1", "dx2"] + ["t1", "t2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
+        dx1, dx2 = var(["dx1", "dx2"])
         k = matrix(Integer(len(kernel_matrix)), Integer(len(kernel_matrix)), kernel_matrix)
         V = V.substitute(x=dx1)
         Vt = Vt.substitute(x=dx2)
