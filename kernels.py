@@ -119,6 +119,8 @@ def create_kernel_matrix_from_diagonal(D):
 
 def build_dict_for_SR_expression(expression):
     final_dict = {}
+    dx1 = var("dx1")
+    dx2 = var("dx2")
     for coeff_dx1 in expression.coefficients(dx1):
         final_dict.update({(Integer(coeff_dx1[1]), Integer(coeff_dx2[1])): coeff_dx2[0] for coeff_dx2 in coeff_dx1[0].coefficients(dx2)})
     return final_dict

@@ -79,6 +79,7 @@ class LODEGP(gpytorch.models.ExactGP):
         self.mean_module = gpytorch.means.MultitaskMean(
             gpytorch.means.ZeroMean(), num_tasks=num_tasks
         )
+        self.model_parameters = torch.nn.ParameterDict()
 
         ODE_name = kwargs["ODE_name"] if "ODE_name" in kwargs else None
         verbose = kwargs["verbose"] if "verbose" in kwargs else False
