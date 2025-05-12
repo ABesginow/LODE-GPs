@@ -8,7 +8,6 @@ import torch
 from functools import reduce
 import gpytorch
 from gpytorch.lazy import *
-from gpytorch.lazy.non_lazy_tensor import  lazify
 from gpytorch.kernels.kernel import Kernel
 from sage.all import *
 import sage

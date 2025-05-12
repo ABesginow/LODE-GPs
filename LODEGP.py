@@ -4,7 +4,7 @@ from sage.all import *
 import sage
 #https://ask.sagemath.org/question/41204/getting-my-own-module-to-work-in-sage/
 from sage.calculus.var import var
-from kernels import LODE_Kernel, create_kernel_matrix_from_diagonal, differentiate_kernel_matrix, replace_sum_and_diff, translate_kernel_matrix_to_gpytorch_kernel 
+from .kernels import LODE_Kernel, create_kernel_matrix_from_diagonal, differentiate_kernel_matrix, replace_sum_and_diff, translate_kernel_matrix_to_gpytorch_kernel 
 import pprint
 import torch
 
