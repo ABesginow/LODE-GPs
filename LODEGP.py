@@ -81,6 +81,7 @@ class LODEGP(gpytorch.models.ExactGP):
         )
 
         ODE_name = kwargs["ODE_name"] if "ODE_name" in kwargs else None
+        verbose = kwargs["verbose"] if "verbose" in kwargs else False
         if ODE_name is not None:
             A, self.parameter_dict = load_standard_model(ODE_name)
         else:
@@ -88,18 +89,22 @@ class LODEGP(gpytorch.models.ExactGP):
             self.parameter_dict = kwargs["parameter_dict"]
 
         D, U, V = A.smith_form()
-        print(f"D:{D}")
-        print(f"V:{V}")
+        
+        if verbose:
+            print(f"D:{D}")
+            print(f"V:{V}")
         x, a, b = var("x, a, b")
         V_temp = [list(b) for b in V.rows()]
-        print(V_temp)
+        if verbose:
+            print(V_temp)
         V = sage_eval(f"matrix({str(V_temp)})", locals={"x":x, "a":a, "b":b})
         Vt = V.transpose()
         kernel_matrix, self.kernel_translation_dict, parameter_dict = create_kernel_matrix_from_diagonal(D)
         self.ode_count = A.nrows()
         self.kernelsize = len(kernel_matrix)
         self.model_parameters.update(parameter_dict)
-        print(self.model_parameters)
+        if verbose:
+            print(self.model_parameters)
         var(["x", "dx1", "dx2"] + ["t1", "t2"] + [f"LODEGP_kernel_{i}" for i in range(len(kernel_matrix[Integer(0)]))])
         k = matrix(Integer(len(kernel_matrix)), Integer(len(kernel_matrix)), kernel_matrix)
         V = V.substitute(x=dx1)
