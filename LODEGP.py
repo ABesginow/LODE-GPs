@@ -1,4 +1,6 @@
+#=======================================================================
 # Imports
+#=======================================================================
 import gpytorch 
 from sage.all import *
 import sage
@@ -29,7 +31,10 @@ def load_standard_model(name: str):
 def list_standard_models():
     return list(STANDARD_MODELS.keys())
 
+#=======================================================================
 # Base ODEs
+#=======================================================================
+
 @register_LODEGP_model("Bipendulum")
 def bipendulum():
     model_parameters = torch.nn.ParameterDict()
@@ -75,7 +80,9 @@ def unknown():
 
 
 
+#=======================================================================
 # LODEGP Class
+#=======================================================================
 class LODEGP(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood, num_tasks, **kwargs):
         super(LODEGP, self).__init__(train_x, train_y, likelihood)
