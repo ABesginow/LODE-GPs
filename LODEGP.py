@@ -25,6 +25,7 @@ def load_standard_model(name: str):
     except KeyError:
         raise ValueError(f"No standard model found for: {name}")
 
+
 def list_standard_models():
     return list(STANDARD_MODELS.keys())
 
