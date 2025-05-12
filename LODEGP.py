@@ -70,7 +70,8 @@ def bipendulum_parameterized():
         "l1":torch.nn.Parameter(torch.tensor(0.0)),
         "l2":torch.nn.Parameter(torch.tensor(0.0))
     })
-    return A, model_parameters
+    return A, model_parameters, {"x":x, "l1": l1, "l2": l2}
+
 
 
 
@@ -98,7 +99,7 @@ def heating_system():
         "b":torch.nn.Parameter(torch.tensor(0.0))
     })
 
-    return A, model_parameters
+    return A, model_parameters, {"x":x, "a": a, "b": b}
 
 
 def unknown():
@@ -124,10 +125,11 @@ class LODEGP(gpytorch.models.ExactGP):
         ODE_name = kwargs["ODE_name"] if "ODE_name" in kwargs else None
         verbose = kwargs["verbose"] if "verbose" in kwargs else False
         if ODE_name is not None:
-            A, self.model_parameters = load_standard_model(ODE_name)
+            A, self.model_parameters, sage_locals = load_standard_model(ODE_name)
         else:
             A = kwargs["A"]
-            self.model_parameters = kwargs["parameter_dict"]
+            self.model_parameters = kwargs["parameter_dict"] if "parameter_dict" in kwargs else torch.nn.ParameterDict()
+            sage_locals = kwargs["sage_locals"] if "sage_locals" in kwargs else {"x": QQ['x'].gen()}
 
         D, U, V = A.smith_form()
         
@@ -138,7 +140,7 @@ class LODEGP(gpytorch.models.ExactGP):
         V_temp = [list(b) for b in V.rows()]
         if verbose:
             print(V_temp)
-        V = sage_eval(f"matrix({str(V_temp)})", locals={"x":x, "a":a, "b":b})
+        V = sage_eval(f"matrix({str(V_temp)})", locals=sage_locals)
         Vt = V.transpose()
         kernel_matrix, self.kernel_translation_dict, parameter_dict = create_kernel_matrix_from_diagonal(D)
         self.ode_count = A.nrows()
