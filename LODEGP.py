@@ -89,15 +89,14 @@ class LODEGP(gpytorch.models.ExactGP):
         self.mean_module = gpytorch.means.MultitaskMean(
             gpytorch.means.ZeroMean(), num_tasks=num_tasks
         )
-        self.model_parameters = torch.nn.ParameterDict()
 
         ODE_name = kwargs["ODE_name"] if "ODE_name" in kwargs else None
         verbose = kwargs["verbose"] if "verbose" in kwargs else False
         if ODE_name is not None:
-            A, self.parameter_dict = load_standard_model(ODE_name)
+            A, self.model_parameters = load_standard_model(ODE_name)
         else:
             A = kwargs["A"]
-            self.parameter_dict = kwargs["parameter_dict"]
+            self.model_parameters = kwargs["parameter_dict"]
 
         D, U, V = A.smith_form()
         
