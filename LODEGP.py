@@ -21,9 +21,9 @@ def register_LODEGP_model(name):
     return decorator
 
 
-def load_standard_model(name: str):
+def load_standard_model(name: str, kwargs):
     try:
-        return STANDARD_MODELS[name]()
+        return STANDARD_MODELS[name](**kwargs or {})
     except KeyError:
         raise ValueError(f"No standard model found for: {name}")
 
@@ -36,31 +36,36 @@ def list_standard_models():
 #=======================================================================
 
 @register_LODEGP_model("Bipendulum")
-def bipendulum():
+def bipendulum(**kwargs):
+    l1 = kwargs.get("l1", 1.0)
+    l2 = kwargs.get("l2", 2.0)
     model_parameters = torch.nn.ParameterDict()
     R = QQ['x']; (x,) = R._first_ngens(1)
     # Linearized bipendulum
-    A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1, 0, x**2+4.905, -1/2])
+    A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81/l1, 0, -1/l1, 0, x**2+9.81/l2, -1/l2])
     return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("Bipendulum first equation")
-def bipendulum_first_eq():
+def bipendulum_first_eq(**kwargs):
+    l1 = kwargs.get("l1", 1.0)
     model_parameters = torch.nn.ParameterDict()
     R = QQ['x']; (x,) = R._first_ngens(1)
     # Linearized bipendulum
-    A = matrix(R, Integer(1), Integer(3), [x**2 + 9.81, 0, -1])
+    A = matrix(R, Integer(1), Integer(3), [x**2 + 9.81/l1, 0, -1/l1])
     return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("Bipendulum second equation")
-def bipendulum_second_eq():
+def bipendulum_second_eq(**kwargs):
+    l2 = kwargs.get("l2", 2.0)
     model_parameters = torch.nn.ParameterDict()
     R = QQ['x']; (x,) = R._first_ngens(1)
     # Linearized bipendulum
-    A = matrix(R, Integer(1), Integer(3), [0, x**2+4.905, -1/2])
+    A = matrix(R, Integer(1), Integer(3), [0, x**2+9.81/l2, -1/l2])
     return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("Bipendulum Parameterized")
-def bipendulum_parameterized():
+def bipendulum_parameterized(**kwargs):
+    # Think about using kwargs as parameter initizations for model_parameters
     F = FunctionField(QQ, names=('l1',)); (l1,) = F._first_ngens(1)
     F = FunctionField(F, names=('l2',)); (l2,) = F._first_ngens(1)
     R = F['x']; (x,) = R._first_ngens(1)
@@ -74,11 +79,19 @@ def bipendulum_parameterized():
     return A, model_parameters, {"x":x, "l1": l1, "l2": l2}
 
 
+@register_LODEGP_model("No system")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    A = matrix(R, Integer(1), Integer(3), [0, 0, 0])
+    return A, model_parameters, {"x":var("x")}
+
 
 
 
 @register_LODEGP_model("Three tank")
-def three_tank():
+def three_tank(**kwargs):
     model_parameters = torch.nn.ParameterDict()
     R = QQ['x']; (x,) = R._first_ngens(1)
 
@@ -89,7 +102,7 @@ def three_tank():
 
 
 @register_LODEGP_model("Heating")
-def heating_system():
+def heating_system(**kwargs):
     # Heating system with parameters
     F = FunctionField(QQ, names=('a',)); (a,) = F._first_ngens(1)
     F = FunctionField(F, names=('b',)); (b,) = F._first_ngens(1)
@@ -104,7 +117,7 @@ def heating_system():
     return A, model_parameters, {"x":x, "a": a, "b": b}
 
 
-def unknown():
+def unknown(**kwargs):
     model_parameters = torch.nn.ParameterDict()
     R = QQ['x']; (x,) = R._first_ngens(1)
     # System 1 (no idea)
@@ -127,7 +140,7 @@ class LODEGP(gpytorch.models.ExactGP):
         ODE_name = kwargs["ODE_name"] if "ODE_name" in kwargs else None
         verbose = kwargs["verbose"] if "verbose" in kwargs else False
         if ODE_name is not None:
-            A, self.model_parameters, sage_locals = load_standard_model(ODE_name)
+            A, self.model_parameters, sage_locals = load_standard_model(ODE_name, kwargs["system_parameters"] if "system_parameters" in kwargs else None)
         else:
             A = kwargs["A"]
             self.model_parameters = kwargs["parameter_dict"] if "parameter_dict" in kwargs else torch.nn.ParameterDict()
