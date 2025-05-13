@@ -21,9 +21,9 @@ def register_LODEGP_model(name):
     return decorator
 
 
-def load_standard_model(name: str, kwargs):
+def load_standard_model(name: str, kwargs: dict = None):
     try:
-        return STANDARD_MODELS[name](**kwargs or {})
+        return STANDARD_MODELS[name](**(kwargs or {}))
     except KeyError:
         raise ValueError(f"No standard model found for: {name}")
 
