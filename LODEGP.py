@@ -156,6 +156,7 @@ class LODEGP(gpytorch.models.ExactGP):
         if verbose:
             print(V_temp)
         V = sage_eval(f"matrix({str(V_temp)})", locals=sage_locals)
+        self.V = V
         Vt = V.transpose()
         kernel_matrix, self.kernel_translation_dict, parameter_dict = create_kernel_matrix_from_diagonal(D)
         self.ode_count = A.nrows()
@@ -177,7 +178,6 @@ class LODEGP(gpytorch.models.ExactGP):
             "t_ones": torch.ones_like(train_x-train_x.t()),
             "t_zeroes": torch.zeros_like(train_x-train_x.t())
         }
-        self.V = V
         self.matrix_multiplication = matrix(k.base_ring(), len(k[0]), len(k[0]), (V*k*Vt))
         self.diffed_kernel = differentiate_kernel_matrix(k, V, Vt, self.kernel_translation_dict)
         self.sum_diff_replaced = replace_sum_and_diff(self.diffed_kernel)
