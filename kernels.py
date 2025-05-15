@@ -69,7 +69,7 @@ class LODE_Kernel(Kernel):
 
 def create_kernel_matrix_from_diagonal(D, **kwargs):
     base_kernel = kwargs["base_kernel"] if "base_kernel" in kwargs else "SE_kernel"
-    if base_kernel == "Matern_kernel":
+    if base_kernel == "Matern_kernel_32":
         # Using numerical value because the regex is not yet properly implemented
         sqrt_3 = sqrt(3).n()
         # TODO abs around t1-t2
@@ -80,7 +80,7 @@ def create_kernel_matrix_from_diagonal(D, **kwargs):
         # TODO make sqrt regex-able
         # TODO set base_kernel_expression to mat52 expression
         #mat52 = (1 + sqrt_5*(sqrt((t1 - t2+const)**2)) + (5*(sqrt((t1 - t2+const)**2))**2)/3)*exp(-sqrt_5*(sqrt((t1 - t2+const)**2)))
-        base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt_5*(t1 - t2)/globals()[f"lengthscale_{i}"] + 5*(t1-t2)/(3*globals()[f"lengthscale_{i}"]**2))*exp(-sqrt_5*(t1 - t2)/globals()[f"lengthscale_{i}"])
+        base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt_5*(t1 - t2)/globals()[f"lengthscale_{i}"] + 5*(t1-t2)**2/(3*globals()[f"lengthscale_{i}"]**2))*exp(-sqrt_5*(t1 - t2)/globals()[f"lengthscale_{i}"])
     elif base_kernel == "SE_kernel":
         base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * exp(-1/2*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
     t1, t2 = var("t1, t2")
