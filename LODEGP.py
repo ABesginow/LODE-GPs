@@ -140,13 +140,13 @@ class LODEGP(gpytorch.models.ExactGP):
         ODE_name = kwargs["ODE_name"] if "ODE_name" in kwargs else None
         verbose = kwargs["verbose"] if "verbose" in kwargs else False
         if ODE_name is not None:
-            A, self.model_parameters, sage_locals = load_standard_model(ODE_name, kwargs["system_parameters"] if "system_parameters" in kwargs else None)
+            self.A, self.model_parameters, sage_locals = load_standard_model(ODE_name, kwargs["system_parameters"] if "system_parameters" in kwargs else None)
         else:
-            A = kwargs["A"]
+            self.A = kwargs["A"]
             self.model_parameters = kwargs["parameter_dict"] if "parameter_dict" in kwargs else torch.nn.ParameterDict()
             sage_locals = kwargs["sage_locals"] if "sage_locals" in kwargs else {"x": QQ['x'].gen()}
 
-        D, U, V = A.smith_form()
+        D, U, V = self.A.smith_form()
         
         if verbose:
             print(f"D:{D}")
@@ -159,7 +159,7 @@ class LODEGP(gpytorch.models.ExactGP):
         self.V = V
         Vt = V.transpose()
         kernel_matrix, self.kernel_translation_dict, parameter_dict = create_kernel_matrix_from_diagonal(D)
-        self.ode_count = A.nrows()
+        self.ode_count = self.num_tasks
         self.kernelsize = len(kernel_matrix)
         self.model_parameters.update(parameter_dict)
         if verbose:
