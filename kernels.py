@@ -44,6 +44,8 @@ class LODE_Kernel(Kernel):
 
         #def forward(self, X, Z=None, common_terms=None):
         def forward(self, x1, x2, diag=False, **params):
+            if diag:
+                raise NotImplementedError("Diagonal forward not implemented for LODE_Kernel")
             common_terms = params["common_terms"]
             model_parameters = self.model_parameters
             if not x2 is None:
@@ -64,7 +66,19 @@ class LODE_Kernel(Kernel):
             return K 
 
 
-def create_kernel_matrix_from_diagonal(D):
+def create_kernel_matrix_from_diagonal(D, **kwargs):
+    base_kernel = kwargs["base_kernel"] if "base_kernel" in kwargs else "SE_kernel"
+    if base_kernel == "Matern_kernel_32":
+        # Using numerical value because the regex is not yet properly implemented
+        const = 1e-15
+        base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt(3)*((sqrt((t1 - t2+const)**2)))/globals()[f"lengthscale_{i}"])*exp(-sqrt(3)*((sqrt((t1 - t2+const)**2)))/globals()[f"lengthscale_{i}"])
+    elif base_kernel == "Matern_kernel_52":
+        # TODO set base_kernel_expression to mat52 expression
+        #mat52 = (1 + sqrt_5*(sqrt((t1 - t2+const)**2)) + (5*(sqrt((t1 - t2+const)**2))**2)/3)*exp(-sqrt_5*(sqrt((t1 - t2+const)**2)))
+        const = 1e-15
+        base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt(5)*((sqrt((t1 - t2+const)**2)))/globals()[f"lengthscale_{i}"] + 5*(t1-t2)**2/(3*globals()[f"lengthscale_{i}"]**2))*exp(-sqrt(5)*((sqrt((t1 - t2+const)**2)))/globals()[f"lengthscale_{i}"])
+    elif base_kernel == "SE_kernel":
+        base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * exp(-1/2*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
     t1, t2 = var("t1, t2")
     translation_dictionary = dict()
     param_dict = torch.nn.ParameterDict()
@@ -83,7 +97,8 @@ def create_kernel_matrix_from_diagonal(D):
             # Create an SE kernel
             var(f"signal_variance_{i}")
             var(f"lengthscale_{i}")
-            translation_dictionary[f"LODEGP_kernel_{i}"] = globals()[f"signal_variance_{i}"]**2 * exp(-1/2*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
+            #translation_dictionary[f"LODEGP_kernel_{i}"] = globals()[f"signal_variance_{i}"]**2 * exp(-1/2*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
+            translation_dictionary[f"LODEGP_kernel_{i}"] = base_kernel_expression(i)
         elif entry == 1:
             translation_dictionary[f"LODEGP_kernel_{i}"] = 0 
         else:
@@ -117,7 +132,7 @@ def create_kernel_matrix_from_diagonal(D):
     return sage_covariance_matrix, translation_dictionary, param_dict
 
 
-def build_dict_for_SR_expression(expression):
+def build_dict_for_SR_expression(expression, dx1, dx2):
     final_dict = {}
     dx1 = var("dx1")
     dx2 = var("dx2")
@@ -125,7 +140,7 @@ def build_dict_for_SR_expression(expression):
         final_dict.update({(Integer(coeff_dx1[1]), Integer(coeff_dx2[1])): coeff_dx2[0] for coeff_dx2 in coeff_dx1[0].coefficients(dx2)})
     return final_dict
 
-def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary):
+def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary, dx1, dx2):
     """
     This code takes the sage covariance matrix and differentiation matrices
     and returns a list of lists containing the results of the `compile` 
@@ -136,7 +151,7 @@ def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary):
     for i, row in  enumerate(sage_multiplication_kernel_matrix):
         for j, cell in enumerate(row):
             cell_expression = 0
-            diff_dictionary = build_dict_for_SR_expression(cell)
+            diff_dictionary = build_dict_for_SR_expression(cell, dx1, dx2)
             for summand in diff_dictionary:
                 #temp_cell_expression = mul([K[i][i] for i, multiplicant in enumerate(summand[3:]) if multiplicant > 0])
                 temp_cell_expression = diff_dictionary[summand]
@@ -178,6 +193,8 @@ def replace_basic_operations(kernel_string):
     # Define the regex replacement rules for the text
     regex_replacements_multi_group = {
         "exp" : [r'(e\^)\((([^()]*|\(([^()]*|\([^()]*\))*\))*)\)', "torch.exp"],
+        # TODO fix this
+        "sqrt" : [r'sqrt(\((([^()]*|\(([^()]*|\([^()]*\))*\))*)\))', "torch.sqrt"],
         "exp_singular" : [r'(e\^)([0-9a-zA-Z_]*)', "torch.exp"]
     }
     regex_replacements_single_group = {
