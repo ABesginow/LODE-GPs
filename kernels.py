@@ -137,12 +137,13 @@ def build_dict_for_SR_expression(expression, dx1, dx2):
         final_dict.update({(Integer(coeff_dx1[1]), Integer(coeff_dx2[1])): coeff_dx2[0] for coeff_dx2 in coeff_dx1[0].coefficients(dx2)})
     return final_dict
 
-def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary, dx1, dx2):
+def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary, dx1, dx2, **kwargs):
     """
     This code takes the sage covariance matrix and differentiation matrices
     and returns a list of lists containing the results of the `compile` 
     commands that calculate the respective cov. fct. entry
     """
+    base_kernel = kwargs["base_kernel"] if "base_kernel" in kwargs else "SE_kernel"
     sage_multiplication_kernel_matrix = matrix(K.base_ring(), len(K[0]), len(K[0]), (V*K*Vt))
     final_kernel_matrix = [[None for i in range(len(K[0]))] for j in range(len(K[0]))]
     for i, row in  enumerate(sage_multiplication_kernel_matrix):
@@ -161,7 +162,16 @@ def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary, dx1, dx
 
                 # And now that everything is replaced: diff that bad boy!
                 cell_expression += SR(temp_cell_expression).diff(t1, summand[0]).diff(t2, summand[1])
-            final_kernel_matrix[i][j] = cell_expression
+
+            if base_kernel == "Matern_kernel_52" or base_kernel == "Matern_kernel_32":
+                var("r")
+                var("t1, t2")
+                assume(r, "real")
+                assume(t1, "real")
+                assume(t2, "real")
+                final_kernel_matrix[i][j] = cell_expression.subs(t1=r+t2).subs(1/abs(r)==sgn(r)/r).simplify().subs(r=t1-t2).simplify().substitute(t1=1, t2=1).simplify()
+            else:
+                final_kernel_matrix[i][j] = cell_expression
     return final_kernel_matrix 
 
 
