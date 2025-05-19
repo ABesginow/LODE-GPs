@@ -1,9 +1,10 @@
 This is the implementation for the Linear Ordinary Differential Equations Gaussian Processes (LODE-GPs), published in [1].
 
 # Installation
-
 First of all, [install SageMath](https://doc.sagemath.org/html/en/installation/index.html).
 Additional required libraries are GPyTorch and PyTorch.
+
+Then simply installing it via `pip install .` (or `pip install -e .` if edits in the code should be automatically recognized) is enough to use it.
 
 # Running
 `MWE.py` should run out of the box calling `python MWE.py`, after switching to the sagemath conda environment using `conda activate <sage-env-name>`.
