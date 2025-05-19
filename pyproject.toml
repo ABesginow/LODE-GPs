@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "LODEGP"
+authors = [
+    {name = "Andreas Besginow", email = "andreas.besginow@th-owl.de"},
+]
+description = "A python package for the class of LODE Gaussian Processes"
+readme = "README.md"
+requires-python = ">=3.12.9"
+license = [
+    {text = "MIT", file = "LICENSE"},
+]
