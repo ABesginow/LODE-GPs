@@ -1,5 +1,5 @@
 import gpytorch
-from LODEGP import LODEGP
+from lodegp.LODEGP import LODEGP
 from sage.all import *
 import sage
 import torch
