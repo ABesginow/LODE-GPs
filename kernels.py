@@ -169,7 +169,7 @@ def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary, dx1, dx
                 assume(r, "real")
                 assume(t1, "real")
                 assume(t2, "real")
-                final_kernel_matrix[i][j] = cell_expression.subs(t1=r+t2).subs(1/abs(r)==sgn(r)/r).simplify().subs(r=t1-t2).simplify().substitute(t1=1, t2=1).simplify()
+                final_kernel_matrix[i][j] = cell_expression.subs(t1=r+t2).subs(1/abs(r)==sgn(r)/r).simplify().subs(r=t1-t2).simplify()
             else:
                 final_kernel_matrix[i][j] = cell_expression
     return final_kernel_matrix 
