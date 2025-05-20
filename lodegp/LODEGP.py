@@ -35,6 +35,11 @@ def list_standard_models():
 # Base ODEs
 #=======================================================================
 
+
+# ====
+# Standard linearized Bipendulum
+# ====
+
 @register_LODEGP_model("Bipendulum")
 def bipendulum(**kwargs):
     l1 = kwargs.get("l1", 1.0)
@@ -77,6 +82,45 @@ def bipendulum_parameterized(**kwargs):
     })
     x, l1, l2 = var(["x", "l1", "l2"])
     return A, model_parameters, {"x":x, "l1": l1, "l2": l2}
+
+#====
+# Awkward Bipendulum systems
+#====
+
+@register_LODEGP_model("Bipendulum Sum")
+def bipendulum(**kwargs):
+    l1 = kwargs.get("l1", 1.0)
+    l2 = kwargs.get("l2", 2.0)
+    model_parameters = torch.nn.ParameterDict()
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    # Linearized bipendulum
+    A = matrix(R, Integer(1), Integer(3), [x**2 + 9.81/l1, x**2+9.81/l2, -1/l1 -1/l2])
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("Bipendulum Sum eq2 diffed")
+def bipendulum(**kwargs):
+    l1 = kwargs.get("l1", 1.0)
+    l2 = kwargs.get("l2", 2.0)
+    model_parameters = torch.nn.ParameterDict()
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    # Linearized bipendulum
+    A = matrix(R, Integer(1), Integer(3), [x**2 + 9.81/l1, x**3+x*9.81/l2, -1/l1 -x/l2])
+    #A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81/l1, 0, -1/l1, 0, x**2+9.81/l2, -1/l2])
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("Bipendulum moon gravitation")
+def bipendulum(**kwargs):
+    l1 = kwargs.get("l1", 1.0)
+    l2 = kwargs.get("l2", 2.0)
+    model_parameters = torch.nn.ParameterDict()
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    # Linearized bipendulum
+    A = matrix(R, Integer(2), Integer(3), [x**2 + 1.62/l1, 0, -1/l1, 0, x**2+1.62/l2, -1/l2])
+    return A, model_parameters, {"x":var("x")}
+
+# ====
+# Other systems
+# ====
 
 
 @register_LODEGP_model("No system")
