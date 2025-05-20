@@ -185,14 +185,13 @@ class LODEGP(gpytorch.models.ExactGP):
         ODE_name = kwargs["ODE_name"] if "ODE_name" in kwargs else None
         verbose = kwargs["verbose"] if "verbose" in kwargs else False
         if ODE_name is not None:
-            self.A, self.model_parameters, sage_locals = load_standard_model(ODE_name, kwargs["system_parameters"] if "system_parameters" in kwargs else None)
+            self.A, self.model_parameters, self.sage_locals = load_standard_model(ODE_name, kwargs["system_parameters"] if "system_parameters" in kwargs else None)
         else:
             self.A = kwargs["A"]
             self.model_parameters = kwargs["parameter_dict"] if "parameter_dict" in kwargs else torch.nn.ParameterDict()
-            sage_locals = kwargs["sage_locals"] if "sage_locals" in kwargs else {"x": QQ['x'].gen()}
+            self.sage_locals = kwargs["sage_locals"] if "sage_locals" in kwargs else {"x": QQ['x'].gen()}
 
         D, U, V = self.A.smith_form()
-        
         if verbose:
             print(f"D:{D}")
             print(f"V:{V}")
@@ -200,7 +199,7 @@ class LODEGP(gpytorch.models.ExactGP):
         V_temp = [list(b) for b in V.rows()]
         if verbose:
             print(V_temp)
-        V = sage_eval(f"matrix({str(V_temp)})", locals=sage_locals)
+        V = sage_eval(f"matrix({str(V_temp)})", locals=self.sage_locals)
         self.V = V
         Vt = V.transpose()
         kernel_matrix, self.kernel_translation_dict, parameter_dict = create_kernel_matrix_from_diagonal(D, base_kernel=base_kernel)
@@ -216,6 +215,9 @@ class LODEGP(gpytorch.models.ExactGP):
         Vt = Vt.substitute(x=dx2)
 
         #train_x = self._slice_input(train_x)
+
+        self.sage_locals["t1"] = var("t1")
+        self.sage_locals["t2"] = var("t2")
 
         self.common_terms = {
             "t_diff" : train_x-train_x.t(),
