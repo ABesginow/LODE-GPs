@@ -232,6 +232,29 @@ class LODEGP(gpytorch.models.ExactGP):
         self.covar_module = LODE_Kernel(self.covar_description, self.model_parameters)
 
 
+    def prepare_symbolic_ode_satisfaction_check(self, target, columnwise=True):
+        """
+        Create all the parameters required to run "calculate_differential_equation_error_symbolic"
+        Note: If columnwise is True, you want to calculate the derivative for "t1", otherwise for "t2"
+        Returns the following outputs:
+        - model_diffed_kernel: the relevant row/column of the symbolic kernel matrix
+        """
+        if columnwise:
+            model_diffed_kernel = [self.diffed_kernel[i][target] for i in range(len(self.diffed_kernel))]
+        else:
+            model_diffed_kernel = [self.diffed_kernel[target][i] for i in range(len(self.diffed_kernel))]
+        return model_diffed_kernel
+
+
+    def prepare_numeric_ode_satisfaction_check(self):
+        """
+        Create all the parameters required to run "calculate_differential_equation_error_numeric"
+        Returns the following outputs:
+        - local_values: a dictionary with the current parameter values 
+        """
+        local_values = {var(param_name) : torch.exp(self.model_parameters[param_name]).item() for param_name in self.model_parameters}
+        return local_values
+
     def __str__(self, substituted=False):
         if substituted:
             return pprint.pformat(str(self.sum_diff_replaced), indent=self.kernelsize)
