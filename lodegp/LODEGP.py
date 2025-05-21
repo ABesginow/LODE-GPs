@@ -252,7 +252,7 @@ class LODEGP(gpytorch.models.ExactGP):
         Returns the following outputs:
         - local_values: a dictionary with the current parameter values 
         """
-        local_values = {var(param_name) : torch.exp(self.model_parameters[param_name]).item() for param_name in self.model_parameters}
+        local_values = {var(param_name): torch.exp(self.model_parameters[param_name]).item() for param_name in self.model_parameters}
         return local_values
 
     def __str__(self, substituted=False):
