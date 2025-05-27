@@ -123,6 +123,17 @@ def bipendulum(**kwargs):
 # ====
 
 
+@register_LODEGP_model("Spring Mass Damper unstable")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    A = matrix(R, Integer(2), Integer(3), [-x, 1, 0, 1, -1 -x, 1])
+    return A, model_parameters, {"x":var("x")}
+
+
+
+
 @register_LODEGP_model("No system")
 def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
@@ -169,7 +180,45 @@ def unknown(**kwargs):
 
     return A, model_parameters, {"x":var("x")}
 
-
+#        if ODE_type == "Heating":
+#            #Heating system with parameters
+#            F = FunctionField(QQ, names=('a',)); (a,) = F._first_ngens(1)
+#            F = FunctionField(F, names=('b',)); (b,) = F._first_ngens(1)
+#            R = F['x']; (x,) = R._first_ngens(1)
+#
+#            A = matrix(R, Integer(2), Integer(3), [x+a, -a, -1, -b, x+b, 0])
+#            self.model_parameters = torch.nn.ParameterDict({
+#                "a":torch.nn.Parameter(torch.tensor(0.0)),
+#                "b":torch.nn.Parameter(torch.tensor(0.0))
+#            })
+#        elif ODE_type == "Minimal correct":
+#            # \dot{x} = x
+#            A = matrix(R, Integer(1), Integer(1), [1-x])
+#        elif ODE_type == "Minimal":
+#            # \dot{x} = u
+#            A = matrix(R, Integer(1), Integer(2), [x, -1])
+#        elif ODE_type == "Bipendulum":
+#            # Linearized bipendulum
+#            A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81, 0, -1, 0, x**2+4.905, -1/2])
+#        elif ODE_type == "System 1":
+#            # System 1 (no idea)
+#            A = matrix(R, Integer(2), Integer(3), [x, -x**2+x-1, x-2, 2-x, x**2-x-1, -x])
+#        elif ODE_type == "Three Tank":
+#            # 3 Tank system (5 dimensional uncontrollable system)
+#            A = matrix(R, Integer(3), Integer(5), [-x, 0, 0, 1, 0, 0, -x, 0, 1, 1, 0, 0, -x, 0, 1])
+#        elif ODE_type == "Three Tank 2":
+#            # 3 Tank system (5 dimensional uncontrollable system)
+#            A = matrix(R, Integer(3), Integer(5), [-x, 0, 0, 1, 0, 0, -x, 0, 1, 1, 0, 0, -x, 0, 1])
+#        elif ODE_type == "Two Tank":
+#            # 3 Tank system (5 dimensional uncontrollable system)
+#            A = matrix(R, Integer(2), Integer(3), [-x, 0, 1, 0, -x, 1])
+#        elif ODE_type == "Spring Mass":
+#            # Spring mass damper system, easy to control
+#            A = matrix(R, Integer(2), Integer(3), [-x, 1, 0, -1, -1-x, 1])
+#        elif ODE_type == "Spring Mass unstable":
+#            A = matrix(R, Integer(2), Integer(3), [-x, 1, 0, 1, -1-x, 1])
+#
+#
 
 #=======================================================================
 # LODEGP Class
