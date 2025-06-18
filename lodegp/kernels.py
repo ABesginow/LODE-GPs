@@ -69,10 +69,10 @@ class LODE_Kernel(Kernel):
 def create_kernel_matrix_from_diagonal(D, **kwargs):
     base_kernel = kwargs["base_kernel"] if "base_kernel" in kwargs else "SE_kernel"
     if base_kernel == "Matern_kernel_32":
-        sqrt_3 = sqrt(3).n()
+        sqrt_3 = sqrt(3)
         base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt_3*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"])*exp(-sqrt_3*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"])
     elif base_kernel == "Matern_kernel_52":
-        sqrt_5 = sqrt(5).n()
+        sqrt_5 = sqrt(5)
         base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt_5*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"] + 5*(t1-t2)**2/(3*globals()[f"lengthscale_{i}"]**2))*exp(-sqrt_5*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"])
     elif base_kernel == "SE_kernel":
         base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * exp(-1/2*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
@@ -169,7 +169,7 @@ def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary, dx1, dx
                 assume(r, "real")
                 assume(t1, "real")
                 assume(t2, "real")
-                final_kernel_matrix[i][j] = cell_expression.subs(t1=r+t2).subs(1/abs(r)==sgn(r)/r).simplify().subs(r=t1-t2).simplify()
+                final_kernel_matrix[i][j] =cell_expression.subs(t1=r+t2).factor().expand().simplify().factor().subs(r=t1-t2).subs({sqrt(5):sqrt(5).n(), sqrt(3):sqrt(3).n()})
             else:
                 final_kernel_matrix[i][j] = cell_expression
     return final_kernel_matrix 
