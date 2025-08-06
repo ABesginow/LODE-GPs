@@ -171,6 +171,14 @@ def heating_system(**kwargs):
     x, a, b = var(["x", "a", "b"])
     return A, model_parameters, {"x":x, "a": a, "b": b}
 
+@register_LODEGP_model("Minimal")
+def unknown(**kwargs):
+    model_parameters = torch.nn.ParameterDict()
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    # System 1 (no idea)
+    A = matrix(R, Integer(1), Integer(2), [x, -1])
+
+    return A, model_parameters, {"x":var("x")}
 
 def unknown(**kwargs):
     model_parameters = torch.nn.ParameterDict()

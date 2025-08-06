@@ -107,7 +107,8 @@ def create_kernel_matrix_from_diagonal(D, **kwargs):
                 #if root[0].is_complex():
                 param_dict[f"signal_variance_{i}_{rootnum}"] = torch.nn.Parameter(torch.tensor(float(0.)))
                 var(f"signal_variance_{i}_{rootnum}")
-                if root[0].is_imaginary() and not root[0].imag() == 0.0:
+                #if root[0].is_imaginary() and not root[0].imag() == 0.0:
+                if root[0].imag() != 0.0:
                     # Check to prevent conjugates creating additional kernels
                     if not root[0].conjugate() in [r[0] for r in roots_copy]:
                         continue
