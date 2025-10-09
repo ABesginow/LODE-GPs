@@ -44,8 +44,6 @@ class LODE_Kernel(Kernel):
 
         #def forward(self, X, Z=None, common_terms=None):
         def forward(self, x1, x2, diag=False, **params):
-            if diag:
-                raise NotImplementedError("Diagonal forward not implemented for LODE_Kernel")
             common_terms = params["common_terms"]
             model_parameters = self.model_parameters
             if not x2 is None:
@@ -62,6 +60,9 @@ class LODE_Kernel(Kernel):
             #if K_list[0].ndim == 1:
             #    K_list = [kk.unsqueeze(1) for kk in K_list]
             K = einops.rearrange(K_list, '(t1 t2) h w -> (h t1) (w t2)', t1=kernel_count, t2=kernel_count)  
+
+            if diag:
+                return K.diagonal()
 
             return K 
 
