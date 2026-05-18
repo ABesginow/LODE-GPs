@@ -121,17 +121,39 @@ def bipendulum(**kwargs):
 # ====
 # Other systems
 # ====
-
+@register_LODEGP_model("SMD scaled")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Spring mass system with negative damping (therefore unstable)
+    A = matrix(R, Integer(2), Integer(3), [-x, 1, 0, 1, -1 -x, 2.5])
+    return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("Spring Mass Damper unstable")
 def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
-    # Linearized bipendulum
+    # Spring mass system with negative damping (therefore unstable)
     A = matrix(R, Integer(2), Integer(3), [-x, 1, 0, 1, -1 -x, 1])
     return A, model_parameters, {"x":var("x")}
 
+@register_LODEGP_model("SMD4")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    A = matrix(R, Integer(3), Integer(4), [-x, 1, 0, 0,
+                                           0, -x, 1, 0,
+                                           1, -1 -x, 0, 1])
+    return A, model_parameters, {"x":var("x")}
 
+@register_LODEGP_model("Integrator3D")
+def integrator_3d(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    A = matrix(R, Integer(2), Integer(3), [-x, 1, 0, 0, -x, 1])
+    return A, model_parameters, {"x":var("x")}
 
 
 @register_LODEGP_model("No system")
