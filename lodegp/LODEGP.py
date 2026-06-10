@@ -40,6 +40,16 @@ def list_standard_models():
 # Standard linearized Bipendulum
 # ====
 
+@register_LODEGP_model("Zero")
+def bipendulum(**kwargs):
+    l1 = kwargs.get("l1", 1.0)
+    l2 = kwargs.get("l2", 2.0)
+    model_parameters = torch.nn.ParameterDict()
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    # Linearized bipendulum
+    A = matrix(R, Integer(1), Integer(1), [-x])
+    return A, model_parameters, {"x":var("x")}
+
 @register_LODEGP_model("Bipendulum")
 def bipendulum(**kwargs):
     l1 = kwargs.get("l1", 1.0)
@@ -121,23 +131,34 @@ def bipendulum(**kwargs):
 # ====
 # Other systems
 # ====
-@register_LODEGP_model("SMD scaled")
+@register_LODEGP_model("SMD1 scaled")
 def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
     # Spring mass system with negative damping (therefore unstable)
-    A = matrix(R, Integer(2), Integer(3), [-x, 1, 0, 1, -1 -x, 2.5])
+    A = matrix(R, Integer(2), Integer(3), [-x, 1, 0,
+                                           1, -1 -x, 2.5])
     return A, model_parameters, {"x":var("x")}
 
-@register_LODEGP_model("Spring Mass Damper unstable")
+@register_LODEGP_model("SM1")
 def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
     # Spring mass system with negative damping (therefore unstable)
-    A = matrix(R, Integer(2), Integer(3), [-x, 1, 0, 1, -1 -x, 1])
+    A = matrix(R, Integer(2), Integer(3), [-x, 1, 0,
+                                           1, -x, 1])
     return A, model_parameters, {"x":var("x")}
 
-@register_LODEGP_model("SMD4")
+@register_LODEGP_model("SMD1")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Spring mass system with negative damping (therefore unstable)
+    A = matrix(R, Integer(2), Integer(3), [-x, 1, 0,
+                                           1, -1 -x, 1])
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("SMD1withAdditionalDerivative")
 def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
@@ -152,13 +173,17 @@ def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
     # Linearized bipendulum
+    k1 = 1.0
+    k2 = 1.0
+    m1 = 1.0
+    m2 = 1.0
     A = matrix(R, Integer(4), Integer(5), [-x, 1, 0, 0, 0,
-                                           -2, -x, 1, 0, 0,
+                                           -(k1 + k2)/m1, -x, k2/m1, 0, 0,
                                            0, 0, -x, 1, 0,
-                                           1, 0, -1, -x, 1])
+                                           k2/m2, 0, -k2/m2, -x, 1])
     return A, model_parameters, {"x":var("x")}
 
-@register_LODEGP_model("SM22")
+@register_LODEGP_model("SM2_2")
 def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
@@ -169,7 +194,7 @@ def bipendulum_parameterized(**kwargs):
                                            1, -1, 0, -x, 1])
     return A, model_parameters, {"x":var("x")}
 
-@register_LODEGP_model("SM23")
+@register_LODEGP_model("SM2_3")
 def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
@@ -178,6 +203,32 @@ def bipendulum_parameterized(**kwargs):
                                            -1, -x, 1, 0, 1,
                                            0, 0, -x, 1, 0,
                                            1, 0, -2, -x, 0])
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("SM3")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    A = matrix(R, Integer(6), Integer(7), [-x, 1, 0, 0, 0, 0, 0,
+                                           -2, -x, 1, 0, 0, 0, 0,
+                                           0, 0, -x, 1, 0, 0, 0,
+                                           0, 0, -2, -x, 1, 0, 0,
+                                           0, 0, 0, 0, -x, 1, 0,
+                                           0, 0, 0, 0, -2, -x, 1])
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("SMD3")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    A = matrix(R, Integer(6), Integer(7), [-x, 1, 0, 0, 0, 0, 0,
+                                           -2, -x, 1, 0, 0, 0, 0,
+                                           0, 0, -x, 1, 0, 0, 0,
+                                           0, 0, -2, -x, 1, 0, 0,
+                                           0, 0, 0, 0, -x, 1, 0,
+                                           0, 0, 0, 0, -2, -x, 1])
     return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("SM5")
@@ -196,6 +247,24 @@ def bipendulum_parameterized(**kwargs):
                                               0, 0, 0, 0, 0, 0, 0, 0, -x, 1, 0,
                                               0, 0, 0, 0, 0, 0, 1, 0, -2, -x, 1])
     return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("SMD5")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    A = matrix(R, Integer(10), Integer(11), [-x, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                             -2, -x, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+                                              0, 0, -x, 1, 0, 0, 0, 0, 0, 0, 0,
+                                              1, 0, -2, -x, 1, 0, 0, 0, 0, 0, 0,
+                                              0, 0, 0, 0, -x, 1, 0, 0, 0, 0, 0,
+                                              0, 0, 1, 0, -2, -x, 1, 0, 0, 0, 0,
+                                              0, 0, 0, 0, 0, 0, -x, 1, 0, 0, 0,
+                                              0, 0, 0, 0, 1, 0, -2, -x, 1, 0, 0,
+                                              0, 0, 0, 0, 0, 0, 0, 0, -x, 1, 0,
+                                              0, 0, 0, 0, 0, 0, 1, 0, -2, -x, 1])
+    return A, model_parameters, {"x":var("x")}
+
 
 @register_LODEGP_model("Integrator3D")
 def integrator_3d(**kwargs):
