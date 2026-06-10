@@ -366,11 +366,12 @@ class LODEGP(gpytorch.models.ExactGP):
         verbose = kwargs["verbose"] if "verbose" in kwargs else False
         if ODE_name is not None:
             self.A, self.model_parameters, self.sage_locals = load_standard_model(ODE_name, kwargs["system_parameters"] if "system_parameters" in kwargs else None)
+            self.ODE_name = ODE_name
         else:
             self.A = kwargs["A"]
             self.model_parameters = kwargs["parameter_dict"] if "parameter_dict" in kwargs else torch.nn.ParameterDict()
             self.sage_locals = kwargs["sage_locals"] if "sage_locals" in kwargs else {"x": QQ['x'].gen()}
-
+            self.ODE_name = "Unknown"
         D, U, V = self.A.smith_form()
         if verbose:
             print(f"D:{D}")
