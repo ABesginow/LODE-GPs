@@ -179,12 +179,13 @@ def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary, dx1, dx
                 cell_expression += SR(temp_cell_expression).diff(t1, summand[0]).diff(t2, summand[1])
 
             if base_kernel.startswith("Matern"):
+                order = int(base_kernel.split("_")[-1][:-1])
                 var("r")
                 var("t1, t2")
                 assume(r, "real")
                 assume(t1, "real")
                 assume(t2, "real")
-                final_kernel_matrix[i][j] =cell_expression.subs(t1=r+t2).factor().expand().simplify().factor().subs(r=t1-t2).subs({sqrt(i): sqrt(i).n() for i in range(3, 101, 2)})
+                final_kernel_matrix[i][j] =cell_expression.subs(t1=r+t2).factor().expand().simplify().factor().subs(r=t1-t2).subs({sqrt(order): sqrt(order).n()})
             else:
                 final_kernel_matrix[i][j] = cell_expression
     return final_kernel_matrix 
