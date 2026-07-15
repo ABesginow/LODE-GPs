@@ -2,6 +2,7 @@
 # Imports
 #=======================================================================
 import gpytorch 
+import numpy as np
 from sage.all import *
 import sage
 #https://ask.sagemath.org/question/41204/getting-my-own-module-to-work-in-sage/
@@ -129,9 +130,68 @@ def bipendulum(**kwargs):
     return A, model_parameters, {"x":var("x")}
 
 # ====
-# Other systems
+# Spring Mass Damper systems
 # ====
-@register_LODEGP_model("SMD1 scaled")
+# Helper function to create the continuous-time system matrices for a spring-mass-damper system with given parameters from https://arxiv.org/pdf/2407.17277 (MIT License)
+def create_spring_mass_sys_ct(ms: np.ndarray, ks: np.ndarray, ds: np.ndarray, num_actuated: int):
+    if type(ms) == list:
+        ms = np.array(ms)
+    elif type(ms) == np.ndarray:
+        pass
+    else:
+        raise ValueError('ms should be a list or np.ndarray')
+    assert ms.dtype in [np.float64,
+                        np.int64], 'ms should be a list of floats or ints'
+    num_masses = len(ms)
+    assert num_masses > 2, 'ms should have at least 3 elements'
+    assert num_actuated <= num_masses, 'num_actuated should be less than or equal to num_masses'
+    assert num_masses == len(ks), 'ms and ks should have the same length'
+    assert num_masses == len(ds), 'ms and ds should have the same length'
+
+    ni = 2  # number of local states
+    nx = ni * num_masses  # number of overall states
+    nth = 4 * (num_masses-1) + 2 + num_actuated
+    nu = num_actuated
+    nw = num_masses
+    if num_masses < 3:
+        raise NotImplementedError()
+    # Define continuous-time system matrices \dot{x}=A_c*x+B_c*u
+    A_c = np.zeros((nx, nx))
+
+    # i=1: also connected to ground
+    A_c[0, :ni] = [0, 1]
+    A_c[1, :2*ni] = np.array([-(ks[0]+ks[1]), -
+                             (ds[0]+ds[1]), ks[1], ds[1]]) / ms[0]
+
+    # 1<i<M-1
+    for i in range(1, num_masses-1):
+        A_c[i*ni, i*ni+1] = 1
+        A_c[i*ni+1, (i-1)*ni:(i+2)*ni] = np.array([ks[i], ds[i], -
+                                                   (ks[i]+ks[i+1]), -(ds[i]+ds[i+1]), ks[i+1], ds[i+1]]) / ms[i]
+
+
+    A_c[-2, -1] = 1
+    A_c[-1, -4:] = np.array([ks[-1], ds[-1], -ks[-1], -ds[-1]]) / ms[-1]
+
+    B_c = np.zeros((nx, nu))
+    B_c[1-2*nu::2] = np.diag([1/m for m in ms[-nu:]])
+
+    A0 = A_c.copy()
+    A0[1::ni] = 0
+
+
+    return A_c, B_c
+
+@register_LODEGP_model("HO")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Spring mass system with negative damping (therefore unstable)
+    A = matrix(R, Integer(2), Integer(2), [-x, 1,
+                                           -1, -x])
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("SMD scaled")
 def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
@@ -146,7 +206,7 @@ def bipendulum_parameterized(**kwargs):
     model_parameters = torch.nn.ParameterDict()
     # Spring mass system with negative damping (therefore unstable)
     A = matrix(R, Integer(2), Integer(3), [-x, 1, 0,
-                                           1, -x, 1])
+                                           1, -x, 20])
     return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("SMD1")
@@ -173,36 +233,26 @@ def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
     # Linearized bipendulum
-    k1 = 1.0
-    k2 = 1.0
-    m1 = 1.0
-    m2 = 1.0
-    A = matrix(R, Integer(4), Integer(5), [-x, 1, 0, 0, 0,
-                                           -(k1 + k2)/m1, -x, k2/m1, 0, 0,
-                                           0, 0, -x, 1, 0,
-                                           k2/m2, 0, -k2/m2, -x, 1])
+    k = [1, 1]
+    m = [1, 1]
+    A = matrix(R, Integer(4), Integer(6), [-x, 1, 0, 0, 0, 0,
+                                           -(k[0] + k[1])/m[0], -x, k[1]/m[0], 0, 1., 0.,
+                                           0, 0, -x, 1, 0, 0,
+                                           k[1]/m[1], 0, -k[1]/m[1], -x, 0, 1.])
     return A, model_parameters, {"x":var("x")}
 
-@register_LODEGP_model("SM2_2")
+@register_LODEGP_model("SMD2")
 def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
     # Linearized bipendulum
-    A = matrix(R, Integer(4), Integer(5), [-x, 0, 1, 0, 0,
-                                           0, -x, 0, 1, 0,
-                                           -2, 1, -x, 1, 0,
-                                           1, -1, 0, -x, 1])
-    return A, model_parameters, {"x":var("x")}
-
-@register_LODEGP_model("SM2_3")
-def bipendulum_parameterized(**kwargs):
-    R = QQ['x']; (x,) = R._first_ngens(1)
-    model_parameters = torch.nn.ParameterDict()
-    # Linearized bipendulum
-    A = matrix(R, Integer(4), Integer(5), [-x, 1, 0, 0, 0,
-                                           -1, -x, 1, 0, 1,
-                                           0, 0, -x, 1, 0,
-                                           1, 0, -2, -x, 0])
+    k = [2, 2]
+    d = [1, 1]
+    m = [1, 1]
+    A = matrix(R, Integer(4), Integer(6), [-x, 1, 0, 0, 0, 0,
+                                           -(k[0] + k[1])/m[0], +d[0]/m[0] - x, k[1]/m[0], 0, 5., 0.,
+                                           0, 0, -x, 1, 0, 0,
+                                           k[1]/m[1], 0, -k[1]/m[1], d[1]/m[1] - x, 0., 5.])
     return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("SM3")
@@ -210,12 +260,14 @@ def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
     # Linearized bipendulum
+    k = [1, 1, 1]
+    m = [1, 1, 1]
     A = matrix(R, Integer(6), Integer(7), [-x, 1, 0, 0, 0, 0, 0,
-                                           -2, -x, 1, 0, 0, 0, 0,
+                                           -(k[0] + k[1])/m[0], -x, k[1]/m[0], 0, 0, 0, 0,
                                            0, 0, -x, 1, 0, 0, 0,
-                                           0, 0, -2, -x, 1, 0, 0,
+                                           0, 0, -(k[1] + k[2])/m[1], -x, k[2]/m[1], 0, 0,
                                            0, 0, 0, 0, -x, 1, 0,
-                                           0, 0, 0, 0, -2, -x, 1])
+                                           0, 0, 0, 0, -k[2]/m[2], -x, 1/m[2]])
     return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("SMD3")
@@ -223,12 +275,25 @@ def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
     # Linearized bipendulum
-    A = matrix(R, Integer(6), Integer(7), [-x, 1, 0, 0, 0, 0, 0,
-                                           -2, -x, 1, 0, 0, 0, 0,
-                                           0, 0, -x, 1, 0, 0, 0,
-                                           0, 0, -2, -x, 1, 0, 0,
-                                           0, 0, 0, 0, -x, 1, 0,
-                                           0, 0, 0, 0, -2, -x, 1])
+    k = 2*np.ones(3)
+    d = np.ones(3)
+    m = np.ones(3)
+    A_c, B_c = create_spring_mass_sys_ct(m, k, d, num_actuated=3)
+    A_sage = np.concatenate([A_c, 3.5 * B_c], axis=1) - x*np.eye(2*len(k), 2*len(k)+B_c.shape[1])
+    A = matrix(R, Integer(2*len(k)), Integer(2*len(k)+B_c.shape[1]), A_sage.flatten().tolist())
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("SMD4")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    k = 2 * np.ones(4)
+    d = np.ones(4)
+    m = np.ones(4)
+    A_c, B_c = create_spring_mass_sys_ct(m, k, d, num_actuated=4)
+    A_sage = np.concatenate([A_c, 3.5 * B_c], axis=1) - x*np.eye(2*len(k), 2*len(k)+B_c.shape[1])
+    A = matrix(R, Integer(2*len(k)), Integer(2*len(k)+B_c.shape[1]), A_sage.flatten().tolist())
     return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("SM5")
@@ -236,16 +301,19 @@ def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
     # Linearized bipendulum
+    k = [1, 1, 1, 1, 1]
+    m = [1, 1, 1, 1, 1]
+    
     A = matrix(R, Integer(10), Integer(11), [-x, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                                              -2, -x, 1, 0, 0, 0, 0, 0, 0, 0, 0,
                                               0, 0, -x, 1, 0, 0, 0, 0, 0, 0, 0,
-                                              1, 0, -2, -x, 1, 0, 0, 0, 0, 0, 0,
+                                              0, 0, -2, -x, 1, 0, 0, 0, 0, 0, 0,
                                               0, 0, 0, 0, -x, 1, 0, 0, 0, 0, 0,
-                                              0, 0, 1, 0, -2, -x, 1, 0, 0, 0, 0,
+                                              0, 0, 0, 0, -2, -x, 1, 0, 0, 0, 0,
                                               0, 0, 0, 0, 0, 0, -x, 1, 0, 0, 0,
-                                              0, 0, 0, 0, 1, 0, -2, -x, 1, 0, 0,
+                                              0, 0, 0, 0, 0, 0, -2, -x, 1, 0, 0,
                                               0, 0, 0, 0, 0, 0, 0, 0, -x, 1, 0,
-                                              0, 0, 0, 0, 0, 0, 1, 0, -2, -x, 1])
+                                              0, 0, 0, 0, 0, 0, 0, 0, -1, -x, 1])
     return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("SMD5")
@@ -253,16 +321,79 @@ def bipendulum_parameterized(**kwargs):
     R = QQ['x']; (x,) = R._first_ngens(1)
     model_parameters = torch.nn.ParameterDict()
     # Linearized bipendulum
-    A = matrix(R, Integer(10), Integer(11), [-x, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                             -2, -x, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-                                              0, 0, -x, 1, 0, 0, 0, 0, 0, 0, 0,
-                                              1, 0, -2, -x, 1, 0, 0, 0, 0, 0, 0,
-                                              0, 0, 0, 0, -x, 1, 0, 0, 0, 0, 0,
-                                              0, 0, 1, 0, -2, -x, 1, 0, 0, 0, 0,
-                                              0, 0, 0, 0, 0, 0, -x, 1, 0, 0, 0,
-                                              0, 0, 0, 0, 1, 0, -2, -x, 1, 0, 0,
-                                              0, 0, 0, 0, 0, 0, 0, 0, -x, 1, 0,
-                                              0, 0, 0, 0, 0, 0, 1, 0, -2, -x, 1])
+    k = 2 * np.ones(5)
+    d = np.ones(5)
+    m = np.ones(5)
+    A_c, B_c = create_spring_mass_sys_ct(m, k, d, num_actuated=5)
+    B_c = np.zeros((2*len(k), 1))
+    B_c[-1, 0] = 3.5
+    A_sage = (np.concatenate([A_c, B_c], axis=1) - x*np.eye(2*len(k), 2*len(k)+1)).flatten().tolist()
+    A = matrix(R, Integer(2*len(k)), Integer(2*len(k)+1), A_sage)
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("SMD6")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    k = np.ones(6)
+    d = np.zeros(6)
+    m = np.ones(6)
+    A_c, B_c = create_spring_mass_sys_ct(m, k, d, num_actuated=1)
+    A_sage = (np.concatenate([A_c, B_c], axis=1) - x*np.eye(2*len(k), 2*len(k)+1)).flatten().tolist()
+    A = matrix(R, Integer(2*len(k)), Integer(2*len(k)+1), A_sage)
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("SMD7")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    k = np.ones(7)
+    d = np.zeros(7)
+    m = np.ones(7)
+    A_c, B_c = create_spring_mass_sys_ct(m, k, d, num_actuated=1)
+    A_sage = (np.concatenate([A_c, B_c], axis=1) - x*np.eye(2*len(k), 2*len(k)+1)).flatten().tolist()
+    A = matrix(R, Integer(2*len(k)), Integer(2*len(k)+1), A_sage)
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("SMD8")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    k = np.ones(8)
+    d = np.zeros(8)
+    m = np.ones(8)
+    A_c, B_c = create_spring_mass_sys_ct(m, k, d, num_actuated=1)
+    A_sage = (np.concatenate([A_c, B_c], axis=1) - x*np.eye(2*len(k), 2*len(k)+1)).flatten().tolist()
+    A = matrix(R, Integer(2*len(k)), Integer(2*len(k)+1), A_sage)
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("SMD9")
+def bipendulum_parameterized(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    k = np.ones(9)
+    d = np.zeros(9)
+    m = np.ones(9)
+    A_c, B_c = create_spring_mass_sys_ct(m, k, d, num_actuated=1)
+    A_sage = (np.concatenate([A_c, B_c], axis=1) - x*np.eye(2*len(k), 2*len(k)+1)).flatten().tolist()
+    A = matrix(R, Integer(2*len(k)), Integer(2*len(k)+1), A_sage)
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("SMD10")
+def smd(**kwargs):
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    model_parameters = torch.nn.ParameterDict()
+    # Linearized bipendulum
+    k = np.ones(10)
+    d = np.zeros(10)
+    m = np.ones(10)
+    A_c, B_c = create_spring_mass_sys_ct(m, k, d, num_actuated=1)
+    A_sage = (np.concatenate([A_c, B_c], axis=1) - x*np.eye(2*len(k), 2*len(k)+1)).flatten().tolist()
+    A = matrix(R, Integer(2*len(k)), Integer(2*len(k)+1), A_sage)
     return A, model_parameters, {"x":var("x")}
 
 
