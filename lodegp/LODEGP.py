@@ -197,7 +197,7 @@ def bipendulum_parameterized(**kwargs):
     model_parameters = torch.nn.ParameterDict()
     # Spring mass system with negative damping (therefore unstable)
     A = matrix(R, Integer(2), Integer(3), [-x, 1, 0,
-                                           1, -1 -x, 2.5])
+                                           -1, 1 -x, 2.5])
     return A, model_parameters, {"x":var("x")}
 
 @register_LODEGP_model("SM1")
