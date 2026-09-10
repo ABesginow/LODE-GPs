@@ -75,6 +75,19 @@ def create_kernel_matrix_from_diagonal(D, **kwargs):
     elif base_kernel == "Matern_kernel_52":
         sqrt_5 = sqrt(5)
         base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt_5*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"] + 5*(t1-t2)**2/(3*globals()[f"lengthscale_{i}"]**2))*exp(-sqrt_5*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"])
+    elif base_kernel == "Matern_kernel_72":
+        sqrt_7 = sqrt(7)
+        base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt_7*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"] + 14*(t1-t2)**2/(5*globals()[f"lengthscale_{i}"]**2) + 7*sqrt_7*(abs(t1-t2)*(t1 - t2)**2)/(15*globals()[f"lengthscale_{i}"]**3))*exp(-sqrt_7*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"])
+    elif base_kernel.startswith("Maternn_kernel"):
+        order = int(base_kernel.split("_")[-1][:-1])
+        base_order = int((order-1)/2)
+        sqrt_order = sqrt(order)
+        
+        base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * \
+            exp(-sqrt_order*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"]) * \
+                factorial(base_order)/factorial(2*base_order) * \
+                    sum([factorial(base_order+j)/(factorial(j)*factorial(base_order-j)) * \
+                        (2*sqrt_order*abs(t1 - t2)/globals()[f"lengthscale_{i}"])**(base_order-j) for j in range(base_order+1)])
     elif base_kernel == "SE_kernel":
         base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * exp(-1/2*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
     t1, t2 = var("t1, t2")
@@ -165,13 +178,14 @@ def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary, dx1, dx
                 # And now that everything is replaced: diff that bad boy!
                 cell_expression += SR(temp_cell_expression).diff(t1, summand[0]).diff(t2, summand[1])
 
-            if base_kernel == "Matern_kernel_52" or base_kernel == "Matern_kernel_32":
+            if base_kernel.startswith("Matern"):
+                order = int(base_kernel.split("_")[-1][:-1])
                 var("r")
                 var("t1, t2")
                 assume(r, "real")
                 assume(t1, "real")
                 assume(t2, "real")
-                final_kernel_matrix[i][j] =cell_expression.subs(t1=r+t2).factor().expand().simplify().factor().subs(r=t1-t2).subs({sqrt(5):sqrt(5).n(), sqrt(3):sqrt(3).n()})
+                final_kernel_matrix[i][j] =cell_expression.subs(t1=r+t2).factor().expand().simplify().factor().subs(r=t1-t2).subs({sqrt(order): sqrt(order).n()})
             else:
                 final_kernel_matrix[i][j] = cell_expression
     return final_kernel_matrix 
