@@ -452,6 +452,24 @@ def unknown(**kwargs):
 
     return A, model_parameters, {"x":var("x")}
 
+@register_LODEGP_model("Minimal2")
+def unknown(**kwargs):
+    model_parameters = torch.nn.ParameterDict()
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    # System 1 (no idea)
+    A = matrix(R, Integer(1), Integer(2), [-x, 1])
+
+    return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("Minimal3")
+def unknown(**kwargs):
+    model_parameters = torch.nn.ParameterDict()
+    R = QQ['x']; (x,) = R._first_ngens(1)
+    # System 1 (no idea)
+    A = matrix(R, Integer(1), Integer(1), [1 - x])
+
+    return A, model_parameters, {"x":var("x")}
+
 def unknown(**kwargs):
     model_parameters = torch.nn.ParameterDict()
     R = QQ['x']; (x,) = R._first_ngens(1)
@@ -507,6 +525,7 @@ class LODEGP(gpytorch.models.ExactGP):
         if verbose:
             print(f"D:{D}")
             print(f"V:{V}")
+            print(f"U:{U}")
         x, a, b = var("x, a, b")
         V_temp = [list(b) for b in V.rows()]
         if verbose:
