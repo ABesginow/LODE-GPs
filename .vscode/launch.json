@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug SageMath script",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "python": true,
+            "console": "integratedTerminal",
+            "pythonPath": "/miniconda3/envs/sagemath/bin/python",
+            "args": [],
+            "env": {
+                "SAGE_ROOT": "/path/to/sage"  // optional, für Sicherheit
+            }
+        }
+    ]
+}

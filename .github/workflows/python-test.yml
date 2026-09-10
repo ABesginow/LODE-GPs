@@ -1,0 +1,32 @@
+name: SageMath Tests (Docker)
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # --- KORREKTUR 1: Submodule mit auschecken ---
+          submodules: true 
+
+      - name: Run tests in SageMath container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: sagemath/sagemath:latest
+          options: -v ${{ github.workspace }}:/workspace -w /workspace
+          run: |
+            export PYTHONPATH=$PYTHONPATH:$(pwd)
+
+            sage -python -m pip install --upgrade pip
+            sage -python -m pip install -e GP_helpers/
+            sage -python -m pip install pytest gpytorch torch numpy matplotlib einops sympy scipy scikit-learn
+
+            if [ -f requirements.txt ]; then
+              sage -python -m pip install -r requirements.txt
+            fi
+
+            sage -python -m pytest -v
