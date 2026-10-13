@@ -44,8 +44,6 @@ class LODE_Kernel(Kernel):
 
         #def forward(self, X, Z=None, common_terms=None):
         def forward(self, x1, x2, diag=False, **params):
-            if diag:
-                raise NotImplementedError("Diagonal forward not implemented for LODE_Kernel")
             common_terms = params["common_terms"]
             model_parameters = self.model_parameters
             if not x2 is None:
@@ -63,17 +61,33 @@ class LODE_Kernel(Kernel):
             #    K_list = [kk.unsqueeze(1) for kk in K_list]
             K = einops.rearrange(K_list, '(t1 t2) h w -> (h t1) (w t2)', t1=kernel_count, t2=kernel_count)  
 
+            if diag:
+                return K.diagonal()
+
             return K 
 
 
 def create_kernel_matrix_from_diagonal(D, **kwargs):
     base_kernel = kwargs["base_kernel"] if "base_kernel" in kwargs else "SE_kernel"
     if base_kernel == "Matern_kernel_32":
-        sqrt_3 = sqrt(3).n()
+        sqrt_3 = sqrt(3)
         base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt_3*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"])*exp(-sqrt_3*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"])
     elif base_kernel == "Matern_kernel_52":
-        sqrt_5 = sqrt(5).n()
+        sqrt_5 = sqrt(5)
         base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt_5*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"] + 5*(t1-t2)**2/(3*globals()[f"lengthscale_{i}"]**2))*exp(-sqrt_5*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"])
+    elif base_kernel == "Matern_kernel_72":
+        sqrt_7 = sqrt(7)
+        base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * (1 + sqrt_7*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"] + 14*(t1-t2)**2/(5*globals()[f"lengthscale_{i}"]**2) + 7*sqrt_7*(abs(t1-t2)*(t1 - t2)**2)/(15*globals()[f"lengthscale_{i}"]**3))*exp(-sqrt_7*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"])
+    elif base_kernel.startswith("Maternn_kernel"):
+        order = int(base_kernel.split("_")[-1][:-1])
+        base_order = int((order-1)/2)
+        sqrt_order = sqrt(order)
+        
+        base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * \
+            exp(-sqrt_order*((abs(t1 - t2)))/globals()[f"lengthscale_{i}"]) * \
+                factorial(base_order)/factorial(2*base_order) * \
+                    sum([factorial(base_order+j)/(factorial(j)*factorial(base_order-j)) * \
+                        (2*sqrt_order*abs(t1 - t2)/globals()[f"lengthscale_{i}"])**(base_order-j) for j in range(base_order+1)])
     elif base_kernel == "SE_kernel":
         base_kernel_expression = lambda i : globals()[f"signal_variance_{i}"]**2 * exp(-1/2*(t1-t2)**2/globals()[f"lengthscale_{i}"]**2)
     t1, t2 = var("t1, t2")
@@ -107,7 +121,8 @@ def create_kernel_matrix_from_diagonal(D, **kwargs):
                 #if root[0].is_complex():
                 param_dict[f"signal_variance_{i}_{rootnum}"] = torch.nn.Parameter(torch.tensor(float(0.)))
                 var(f"signal_variance_{i}_{rootnum}")
-                if root[0].is_imaginary() and not root[0].imag() == 0.0:
+                #if root[0].is_imaginary() and not root[0].imag() == 0.0:
+                if root[0].imag() != 0.0:
                     # Check to prevent conjugates creating additional kernels
                     if not root[0].conjugate() in [r[0] for r in roots_copy]:
                         continue
@@ -163,13 +178,14 @@ def differentiate_kernel_matrix(K, V, Vt, kernel_translation_dictionary, dx1, dx
                 # And now that everything is replaced: diff that bad boy!
                 cell_expression += SR(temp_cell_expression).diff(t1, summand[0]).diff(t2, summand[1])
 
-            if base_kernel == "Matern_kernel_52" or base_kernel == "Matern_kernel_32":
+            if base_kernel.startswith("Matern"):
+                order = int(base_kernel.split("_")[-1][:-1])
                 var("r")
                 var("t1, t2")
                 assume(r, "real")
                 assume(t1, "real")
                 assume(t2, "real")
-                final_kernel_matrix[i][j] = cell_expression.subs(t1=r+t2).subs(1/abs(r)==sgn(r)/r).simplify().subs(r=t1-t2).simplify()
+                final_kernel_matrix[i][j] =cell_expression.subs(t1=r+t2).factor().expand().simplify().factor().subs(r=t1-t2).subs({sqrt(order): sqrt(order).n()})
             else:
                 final_kernel_matrix[i][j] = cell_expression
     return final_kernel_matrix 
