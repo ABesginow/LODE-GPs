@@ -50,6 +50,17 @@ def bipendulum(**kwargs):
     A = matrix(R, Integer(2), Integer(3), [x**2 + 9.81/l1, 0, -1/l1, 0, x**2+9.81/l2, -1/l2])
     return A, model_parameters, {"x":var("x")}
 
+@register_LODEGP_model("Bipendulum first equation - g")
+def bipendulum(**kwargs):
+    l1 = kwargs.get("l1", 1)
+    l2 = kwargs.get("l2", 2)
+    model_parameters = torch.nn.ParameterDict()
+    F = FunctionField(QQ, names=('g',)); (g,) = F._first_ngens(1)
+    R = F['x']; (x,) = R._first_ngens(1)
+    # Linearized bipendulum
+    A = matrix(R, Integer(1), Integer(3), [x**2 + g/l1, 0, -1/l1])
+    return A, model_parameters, {"x":var("x"), "g": var("g")}
+
 @register_LODEGP_model("Bipendulum first equation")
 def bipendulum_first_eq(**kwargs):
     l1 = kwargs.get("l1", 1.0)
@@ -67,6 +78,17 @@ def bipendulum_second_eq(**kwargs):
     # Linearized bipendulum
     A = matrix(R, Integer(1), Integer(3), [0, x**2+9.81/l2, -1/l2])
     return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("Bipendulum second equation - g")
+def bipendulum(**kwargs):
+    l1 = kwargs.get("l1", 1)
+    l2 = kwargs.get("l2", 2)
+    model_parameters = torch.nn.ParameterDict()
+    F = FunctionField(QQ, names=('g',)); (g,) = F._first_ngens(1)
+    R = F['x']; (x,) = R._first_ngens(1)
+    # Linearized bipendulum
+    A = matrix(R, Integer(1), Integer(3), [0, x**2+g/l2, -1/l2])
+    return A, model_parameters, {"x":var("x"), "g": var("g")}
 
 @register_LODEGP_model("Bipendulum Parameterized")
 def bipendulum_parameterized(**kwargs):
@@ -96,6 +118,17 @@ def bipendulum(**kwargs):
     # Linearized bipendulum
     A = matrix(R, Integer(1), Integer(3), [x**2 + 9.81/l1, x**2+9.81/l2, -1/l1 -1/l2])
     return A, model_parameters, {"x":var("x")}
+
+@register_LODEGP_model("Bipendulum Sum - g")
+def bipendulum(**kwargs):
+    l1 = kwargs.get("l1", 1)
+    l2 = kwargs.get("l2", 2)
+    model_parameters = torch.nn.ParameterDict()
+    F = FunctionField(QQ, names=('g',)); (g,) = F._first_ngens(1)
+    R = F['x']; (x,) = R._first_ngens(1)
+    # Linearized bipendulum
+    A = matrix(R, Integer(1), Integer(3), [x**2 + g/l1, x**2+g/l2, -1/l1 -1/l2])
+    return A, model_parameters, {"x":var("x"), "g": var("g")}
 
 @register_LODEGP_model("Bipendulum Sum eq2 diffed")
 def bipendulum(**kwargs):
